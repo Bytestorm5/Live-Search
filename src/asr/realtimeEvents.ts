@@ -21,24 +21,27 @@ export interface TranscriptionSettings {
 }
 
 /**
- * Build the `session.update` payload that configures a transcription session.
- * Schema per the current Realtime docs: `session.type: "transcription"` with the
- * audio input format, transcription model, optional turn detection and noise
- * reduction nested under `session.audio.input`.
+ * Build the `transcription_session.update` payload that configures the session.
+ *
+ * This targets the `?intent=transcription` endpoint, which uses the FLAT schema:
+ * `input_audio_format` (a string; "pcm16" implies 24 kHz mono LE),
+ * `input_audio_transcription`, `turn_detection`, and `input_audio_noise_reduction`
+ * — NOT the GA `session.type: "transcription"` shape nested under `audio.input`,
+ * which this endpoint silently ignores (resulting in no transcripts).
  */
 export function buildSessionUpdate(s: TranscriptionSettings): object {
-  const input: Record<string, unknown> = {
-    format: { type: 'audio/pcm', rate: s.sampleRate },
-    transcription: {
+  const session: Record<string, unknown> = {
+    input_audio_format: 'pcm16',
+    input_audio_transcription: {
       model: s.model,
       ...(s.language ? { language: s.language } : {}),
     },
     turn_detection: s.serverVad ? { type: 'server_vad' } : null,
   };
   if (s.noiseReduction !== 'none') {
-    input.noise_reduction = { type: s.noiseReduction };
+    session.input_audio_noise_reduction = { type: s.noiseReduction };
   }
-  return { type: 'session.update', session: { type: 'transcription', audio: { input } } };
+  return { type: 'transcription_session.update', session };
 }
 
 /** Build an audio append event from base64-encoded PCM16. */
@@ -75,6 +78,8 @@ export function parseRealtimeEvent(data: string | object): RealtimeEvent {
       return { kind: 'speech-stop' };
     case 'session.created':
     case 'session.updated':
+    case 'transcription_session.created':
+    case 'transcription_session.updated':
       return { kind: 'session' };
     case 'error': {
       const err = msg.error as { message?: string } | undefined;
