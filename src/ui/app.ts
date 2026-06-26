@@ -38,6 +38,7 @@ export class App {
   private errorBanner!: HTMLElement;
   private micMeterFill!: HTMLElement;
   private apiKeyInput!: HTMLInputElement;
+  private sourceSelect!: HTMLSelectElement;
   private modelSelect!: HTMLSelectElement;
   private languageInput!: HTMLInputElement;
   private noiseSelect!: HTMLSelectElement;
@@ -115,6 +116,14 @@ export class App {
       title: 'OpenAI API key (kept in this browser only)',
     }) as HTMLInputElement;
 
+    this.sourceSelect = el(
+      'select',
+      { class: 'setting', title: 'Capture from your mic, or a shared tab/screen (e.g. a Discord call)' },
+      el('option', { value: 'microphone' }, 'Microphone'),
+      el('option', { value: 'display' }, 'Shared audio (tab/system) — Chromium'),
+    ) as HTMLSelectElement;
+    this.sourceSelect.value = this.config.audio.source;
+
     this.modelSelect = el(
       'select',
       { class: 'setting' },
@@ -158,6 +167,7 @@ export class App {
       { class: 'settings' },
       el('summary', {}, 'Settings'),
       el('label', { class: 'key-label' }, 'OpenAI API key', this.apiKeyInput),
+      el('label', {}, 'Audio source', this.sourceSelect),
       el('label', {}, 'Model', this.modelSelect),
       el('label', {}, 'Language', this.languageInput),
       el('label', {}, 'Noise reduction', this.noiseSelect),
@@ -224,6 +234,7 @@ export class App {
 
   private readConfig(): AppConfig {
     const overrides: DeepPartial<AppConfig> = {
+      audio: { source: this.sourceSelect.value as AppConfig['audio']['source'] },
       transcription: {
         model: this.modelSelect.value as TranscriptionModel,
         language: this.languageInput.value.trim(),
@@ -238,7 +249,7 @@ export class App {
   }
 
   private setSettingsDisabled(disabled: boolean): void {
-    for (const c of [this.apiKeyInput, this.modelSelect, this.languageInput, this.noiseSelect, this.semanticToggle, this.resultCount]) {
+    for (const c of [this.apiKeyInput, this.sourceSelect, this.modelSelect, this.languageInput, this.noiseSelect, this.semanticToggle, this.resultCount]) {
       c.disabled = disabled;
     }
   }

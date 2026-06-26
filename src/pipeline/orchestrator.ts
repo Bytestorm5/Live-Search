@@ -115,7 +115,7 @@ export class Orchestrator {
     void this.buildEngine();
 
     try {
-      this.capture = await startCapture((frame) => this.onFrame(frame));
+      this.capture = await startCapture((frame) => this.onFrame(frame), { source: this.config.audio.source });
       this.resampler = new Resampler(this.capture.sampleRate, this.config.audio.targetSampleRate);
       this.emitStatus({ micActive: true });
 

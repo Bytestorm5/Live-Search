@@ -48,7 +48,18 @@ npm run dev           # start the dev server
 
 Open the printed URL, open **Settings**, paste your **OpenAI API key**, then click
 **Start listening** and grant microphone access. Speak — transcripts stream in and
-matching docs appear.
+matching docs appear. A live **mic level meter** next to the button confirms audio
+is being captured.
+
+**Audio source.** Settings → *Audio source* chooses where audio comes from:
+
+- **Microphone** (default) — your mic via `getUserMedia`.
+- **Shared audio (tab/system)** — a shared tab or screen's audio via
+  `getDisplayMedia`, e.g. to transcribe a **Discord/Meet call**. When the picker
+  appears, choose the tab/screen and tick **"Share audio" / "Share system
+  audio"**. This path is Chromium-only (Firefox doesn't support display-audio
+  capture). To capture a desktop Discord call, share your **screen** with system
+  audio; for Discord-in-a-browser-tab, share that **tab**'s audio.
 
 The API key is stored only in your browser's `localStorage` and sent directly to
 OpenAI to authenticate the WebSocket. **Use a key you can rotate / restrict** (see
@@ -84,14 +95,22 @@ JSON gives the most control:
 result a link. Then:
 
 ```bash
-npm run ingest                 # docs-corpus/ -> public/corpus.index.json
+npm run ingest                 # docs-corpus/ -> public/corpus.index.ndjson
 npm run ingest -- ./my-docs    # a different source directory
-npm run ingest -- --embed      # also precompute MiniLM embeddings (semantic)
+npm run ingest -- --out public/corpus.index.ndjson
 ```
 
-Re-run after changing docs. The generated `public/corpus.index.json` is what the
-app loads; it's git-ignored as a derived artifact. The app also runs with no
+Re-run after changing docs. The generated `public/corpus.index.ndjson` is what
+the app loads; it's git-ignored as a derived artifact. The app also runs with no
 index (transcript-only) and shows a "no corpus loaded" status.
+
+**Large corpora.** The index is a line-delimited (NDJSON) file: one JSON record
+per line. The CLI stream-writes it and the browser stream-parses it from the
+fetch body, so neither side ever builds a single giant string — tens of
+thousands of documents (hundreds of MB of index) ingest and load fine. (Note:
+the whole index is still held in browser memory, so extremely large corpora are
+bounded by RAM, and the optional local semantic embedder is impractical at that
+scale — keep semantic off for big corpora and rely on BM25.)
 
 ---
 
@@ -164,10 +183,10 @@ It needs a Chromium browser: set `PLAYWRIGHT_CHROMIUM_PATH` or run
 
 ```
 src/
-  audio/        AudioWorklet capture (frame callback) + streaming resampler
+  audio/        AudioWorklet capture (mic or shared audio) + resampler + level meter
   asr/          OpenAI Realtime client, PCM16 + protocol codec
-  retrieval/    tokenizer, BM25, vector index, fusion, chunking, snippets, ingest,
-                hybrid engine, optional MiniLM embedder
+  retrieval/    tokenizer, BM25, vectors, fusion, chunking, snippets, ingest,
+                streamable NDJSON index (load/save), hybrid engine, MiniLM embedder
   terms/        phonetics, edit distance, extraction, vocabulary correction
   pipeline/     orchestrator (capture → transcribe → retrieve), rolling transcript
   ui/           DOM helpers, result rendering, app controller, styles

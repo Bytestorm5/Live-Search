@@ -9,6 +9,13 @@ import type { NoiseReduction, TranscriptionModel } from './asr/realtimeEvents.ts
 export interface AudioConfig {
   /** Sample rate we resample to before sending to OpenAI (their PCM rate). */
   targetSampleRate: number;
+  /**
+   * Where to capture audio from:
+   *  - 'microphone': your mic (getUserMedia).
+   *  - 'display': a shared tab/screen's audio (getDisplayMedia) — e.g. to
+   *    transcribe a Discord/Meet call. Requires choosing "share audio".
+   */
+  source: 'microphone' | 'display';
 }
 
 export interface TranscriptionConfig {
@@ -56,6 +63,7 @@ export interface AppConfig {
 export const DEFAULT_CONFIG: AppConfig = {
   audio: {
     targetSampleRate: 24_000,
+    source: 'microphone',
   },
   transcription: {
     model: 'gpt-4o-mini-transcribe',

@@ -14,6 +14,8 @@
 const WORKLET_URL = '/worklets/capture-processor.js';
 
 export interface CaptureOptions {
+  /** 'microphone' (default) or 'display' for shared tab/system audio. */
+  source?: 'microphone' | 'display';
   echoCancellation?: boolean;
   noiseSuppression?: boolean;
 }
@@ -24,17 +26,35 @@ export interface CaptureHandle {
   stop(): Promise<void>;
 }
 
-export async function startCapture(
-  onFrame: (frame: Float32Array) => void,
-  options: CaptureOptions = {},
-): Promise<CaptureHandle> {
-  const stream = await navigator.mediaDevices.getUserMedia({
+/** Acquire an audio MediaStream from the mic or a shared tab/screen. */
+async function acquireStream(options: CaptureOptions): Promise<MediaStream> {
+  if (options.source === 'display') {
+    // getDisplayMedia requires video; we use only the audio track. The user must
+    // tick "Share audio" / "Share system audio" in the picker.
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    stream.getVideoTracks().forEach((t) => t.stop()); // we only need audio
+    if (stream.getAudioTracks().length === 0) {
+      stream.getTracks().forEach((t) => t.stop());
+      throw new Error(
+        'No audio was shared. Pick a tab or screen and enable "Share audio" / "Share system audio" (Chromium only).',
+      );
+    }
+    return stream;
+  }
+  return navigator.mediaDevices.getUserMedia({
     audio: {
       channelCount: 1,
       echoCancellation: options.echoCancellation ?? true,
       noiseSuppression: options.noiseSuppression ?? true,
     },
   });
+}
+
+export async function startCapture(
+  onFrame: (frame: Float32Array) => void,
+  options: CaptureOptions = {},
+): Promise<CaptureHandle> {
+  const stream = await acquireStream(options);
 
   const context = new AudioContext();
   try {

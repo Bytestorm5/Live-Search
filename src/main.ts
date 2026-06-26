@@ -6,27 +6,14 @@
  */
 import './ui/styles.css';
 import { App } from './ui/app.ts';
-import type { CorpusIndex } from './retrieval/types.ts';
+import { loadCorpusIndex } from './retrieval/loadIndex.ts';
 
-const INDEX_URL = '/corpus.index.json';
-
-async function loadIndex(): Promise<CorpusIndex | null> {
-  try {
-    const res = await fetch(INDEX_URL);
-    if (!res.ok) return null;
-    const text = await res.text();
-    // Guard against a static host's SPA fallback returning index.html.
-    if (text.trimStart().startsWith('<')) return null;
-    return JSON.parse(text) as CorpusIndex;
-  } catch {
-    return null;
-  }
-}
+const INDEX_URL = '/corpus.index.ndjson';
 
 async function main(): Promise<void> {
   const container = document.getElementById('app');
   if (!container) throw new Error('Missing #app mount point');
-  const index = await loadIndex();
+  const index = await loadCorpusIndex(INDEX_URL);
   new App({ index }).mount(container);
 }
 

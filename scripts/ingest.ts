@@ -1,33 +1,32 @@
 /**
  * Documentation ingest CLI (architecture spec §5.4, §5.5).
  *
- *   npm run ingest [-- <docs-dir>] [--embed] [--out <file>]
+ *   npm run ingest [-- <docs-dir>] [--out <file>]
  *
  * Reads Markdown / text / HTML / JSON docs from <docs-dir> (default
  * `docs-corpus/`), chunks them, builds the BM25 index and the known vocabulary,
- * and writes `public/corpus.index.json` for the app to load. With `--embed` it
- * also precomputes MiniLM embeddings (downloads the model the first time);
- * otherwise embeddings are computed in-browser at load.
+ * and STREAM-WRITES `public/corpus.index.ndjson` (one JSON record per line) so
+ * arbitrarily large corpora never overflow the JS engine's max string length.
  */
-import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { readdir, readFile, mkdir } from 'node:fs/promises';
+import { once } from 'node:events';
 import { join, dirname } from 'node:path';
-import { buildIndex, withEmbeddings } from '../src/retrieval/ingest.ts';
-import { embedChunks } from '../src/retrieval/embedding.ts';
+import { buildIndex } from '../src/retrieval/ingest.ts';
+import { encodeIndexLines } from '../src/retrieval/indexFormat.ts';
 import { parseDocFile, SUPPORTED_EXTENSIONS } from '../src/ingest/loadDocs.ts';
 import { makeConfig } from '../src/config.ts';
-import type { RawDoc } from '../src/retrieval/types.ts';
+import type { CorpusIndex, RawDoc } from '../src/retrieval/types.ts';
 
-function parseArgs(argv: string[]): { dir: string; out: string; embed: boolean } {
+function parseArgs(argv: string[]): { dir: string; out: string } {
   let dir = 'docs-corpus';
-  let out = 'public/corpus.index.json';
-  let embed = false;
+  let out = 'public/corpus.index.ndjson';
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--embed') embed = true;
-    else if (a === '--out') out = argv[++i];
+    if (a === '--out') out = argv[++i];
     else if (!a.startsWith('--')) dir = a;
   }
-  return { dir, out, embed };
+  return { dir, out };
 }
 
 async function walk(dir: string): Promise<string[]> {
@@ -46,8 +45,30 @@ async function walk(dir: string): Promise<string[]> {
   return out;
 }
 
+/** Stream the index to disk one ~1 MB buffer at a time (never a giant string). */
+async function writeIndex(out: string, index: CorpusIndex): Promise<number> {
+  await mkdir(dirname(out), { recursive: true });
+  const stream = createWriteStream(out);
+  let pending = '';
+  let bytes = 0;
+  const flush = async () => {
+    if (!pending) return;
+    bytes += Buffer.byteLength(pending);
+    if (!stream.write(pending)) await once(stream, 'drain');
+    pending = '';
+  };
+  for (const line of encodeIndexLines(index)) {
+    pending += line + '\n';
+    if (pending.length >= 1 << 20) await flush();
+  }
+  await flush();
+  stream.end();
+  await once(stream, 'finish');
+  return bytes;
+}
+
 async function main(): Promise<void> {
-  const { dir, out, embed } = parseArgs(process.argv.slice(2));
+  const { dir, out } = parseArgs(process.argv.slice(2));
   const files = await walk(dir);
   if (files.length === 0) {
     console.error(`No supported documents found in "${dir}/". Supported: ${SUPPORTED_EXTENSIONS.join(', ')}`);
@@ -62,23 +83,11 @@ async function main(): Promise<void> {
   console.log(`Loaded ${docs.length} document(s) from ${files.length} file(s) in "${dir}/".`);
 
   const config = makeConfig();
-  let index = buildIndex(docs, config);
+  const index = buildIndex(docs, config);
   console.log(`Built index: ${index.chunks.length} chunks, ${index.vocabulary.entries.length} vocabulary terms.`);
 
-  if (embed) {
-    console.log('Embedding chunks with MiniLM (first run downloads the model)…');
-    const { MiniLmEmbedder } = await import('../src/retrieval/minilmEmbedder.ts');
-    const model = new MiniLmEmbedder('wasm');
-    await model.load();
-    const embeddings = await embedChunks(index.chunks, model);
-    index = withEmbeddings(index, embeddings);
-    console.log(`Embedded ${embeddings.vectors.length} chunks (dim ${embeddings.dim}).`);
-  }
-
-  await mkdir(dirname(out), { recursive: true });
-  const json = JSON.stringify(index);
-  await writeFile(out, json);
-  console.log(`Wrote ${out} (${(json.length / 1024).toFixed(1)} KiB)${embed ? ' with embeddings' : ''}.`);
+  const bytes = await writeIndex(out, index);
+  console.log(`Wrote ${out} (${(bytes / (1024 * 1024)).toFixed(1)} MiB, streamed).`);
 }
 
 main().catch((err) => {

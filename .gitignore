@@ -44,6 +44,7 @@ pnpm-debug.log*
 # is a derived artifact. Comment this out if you prefer to commit the prebuilt
 # index for zero-build static hosting.
 public/corpus.index.json
+public/corpus.index.ndjson
 
 # Downloaded model weights cached locally during development
 .models/

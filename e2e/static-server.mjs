@@ -17,6 +17,7 @@ const TYPES = {
   '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.ndjson': 'application/x-ndjson; charset=utf-8',
   '.wasm': 'application/wasm',
   '.onnx': 'application/octet-stream',
   '.map': 'application/json; charset=utf-8',
