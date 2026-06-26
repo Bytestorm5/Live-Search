@@ -89,4 +89,16 @@ describe('RetrievalEngine (hybrid)', () => {
     const hits = await engine.query({ terms: [], transcriptWindow: 'silence detection and utterances', k: 3 });
     expect(hits.length).toBeGreaterThan(0); // semantic-only query (no lexical terms) still returns
   });
+
+  it('degrades to lexical when embeddings are precomputed but no embedder is supplied (no crash)', async () => {
+    // Mirrors the worker fallback path: an index with vectors, but the semantic
+    // model failed to load, so no embedder is available to embed the query.
+    const base = buildIndex(docs, config);
+    const emb = await embedChunks(base.chunks, new FakeEmbedder());
+    const engine = new RetrievalEngine({ index: withEmbeddings(base, emb), config }); // no embedder
+    expect(engine.hasSemantic).toBe(false);
+    const hits = await engine.query({ terms: ['Moonshine'], transcriptWindow: 'asr model', k: 3 });
+    expect(hits[0].chunk.docId).toBe('asr');
+    expect(hits[0].semanticScore).toBeUndefined(); // lexical-only
+  });
 });

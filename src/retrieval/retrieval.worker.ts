@@ -27,16 +27,33 @@ ctx.onmessage = async (e: MessageEvent<RetrievalInbound>) => {
     case 'loadIndex': {
       try {
         config = msg.config;
-        const opts: ConstructorParameters<typeof RetrievalEngine>[0] = {
-          index: msg.index,
-          config: msg.config,
-        };
         if (msg.useSemantic) {
-          await configureTransformersEnv(msg.modelEnv);
-          opts.embedder = new MiniLmEmbedder(msg.provider);
+          try {
+            await configureTransformersEnv(msg.modelEnv);
+            engine = new RetrievalEngine({
+              index: msg.index,
+              config: msg.config,
+              embedder: new MiniLmEmbedder(msg.provider),
+            });
+            await engine.init();
+          } catch (semErr) {
+            // Graceful degradation (spec §10): if the semantic model can't load
+            // (offline, blocked CDN, missing self-hosted weights), fall back to
+            // lexical-only retrieval rather than failing the whole pipeline.
+            engine = new RetrievalEngine({ index: msg.index, config: msg.config });
+            await engine.init();
+            post({
+              type: 'ready',
+              hasSemantic: engine.hasSemantic,
+              chunkCount: engine.chunkCount,
+              warning: `Semantic search disabled (lexical only): ${String(semErr)}`,
+            });
+            break;
+          }
+        } else {
+          engine = new RetrievalEngine({ index: msg.index, config: msg.config });
+          await engine.init();
         }
-        engine = new RetrievalEngine(opts);
-        await engine.init();
         post({ type: 'ready', hasSemantic: engine.hasSemantic, chunkCount: engine.chunkCount });
       } catch (err) {
         post({ type: 'error', message: `Index load failed: ${String(err)}` });

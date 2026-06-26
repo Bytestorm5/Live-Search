@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vite build && playwright test",
     "coverage": "vitest run --coverage",
     "ingest": "tsx scripts/ingest.ts"
   },
@@ -23,6 +24,7 @@
     "onnxruntime-web": "^1.20.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^22.10.5",
     "@vitest/coverage-v8": "^2.1.8",
     "happy-dom": "^15.11.7",

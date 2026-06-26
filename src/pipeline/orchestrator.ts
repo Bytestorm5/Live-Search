@@ -256,6 +256,7 @@ export class Orchestrator {
     switch (msg.type) {
       case 'ready':
         this.embedProgress = 1;
+        if (msg.warning) console.warn('[retrieval]', msg.warning);
         this.emitStatus({ retrievalReady: true, hasSemantic: msg.hasSemantic });
         break;
       case 'progress':

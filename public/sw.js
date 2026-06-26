@@ -7,7 +7,7 @@
  * Strategy: cache-first for hashed build assets + model/runtime files (they are
  * immutable), network-first for navigations so updates are picked up.
  */
-const CACHE = 'live-search-v1';
+const CACHE = 'live-search-v2';
 const APP_SHELL = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {

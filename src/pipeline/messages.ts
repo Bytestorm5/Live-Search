@@ -53,7 +53,7 @@ export type RetrievalInbound =
   | { type: 'query'; id: number; text: string; transcriptWindow: string; excludeChunkIds: string[] };
 
 export type RetrievalOutbound =
-  | { type: 'ready'; hasSemantic: boolean; chunkCount: number }
+  | { type: 'ready'; hasSemantic: boolean; chunkCount: number; warning?: string }
   | { type: 'progress'; progress: number; status: string }
   | { type: 'results'; id: number; hits: SearchHit[]; rawTerms: string[]; correctedTerms: string[] }
   | { type: 'error'; message: string };

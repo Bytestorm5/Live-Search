@@ -48,7 +48,10 @@ async function main(): Promise<void> {
   const index = await loadIndex();
   const app = new App({ index });
   app.mount(container);
-  void registerServiceWorker();
+  // Only register the offline cache in production builds. In dev a service
+  // worker would serve stale bundles/workers across reloads, which masks code
+  // changes (and made an earlier model-loading fix appear not to take effect).
+  if (import.meta.env.PROD) void registerServiceWorker();
 }
 
 void main();

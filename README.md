@@ -202,6 +202,41 @@ unit-tested. The browser/model glue (workers, AudioWorklet, model wrappers) is
 validated by `tsc` and the production build, and kept thin so the tested core
 carries the behavior.
 
+### End-to-end (browser) tests
+
+Some failures only happen in a real browser served by a real static host — e.g.
+a model file resolving to the SPA `index.html` fallback and breaking
+`JSON.parse`. Those are covered by a Playwright test that serves the build from a
+SPA-fallback server and drives Chromium:
+
+```bash
+npm run test:e2e   # builds, then runs Playwright against the build
+```
+
+It needs a Chromium browser: either set `PLAYWRIGHT_CHROMIUM_PATH`, or run
+`npx playwright install chromium`. `e2e/repro.spec.ts` specifically guards
+against the model-loading regression described in Troubleshooting.
+
+## Troubleshooting
+
+**`Index load failed: SyntaxError: JSON.parse: unexpected character at line 1
+column 1`** — a model file was fetched from the app's own origin and the static
+host returned `index.html` (its SPA fallback) instead of the file, so JSON
+parsing hit `<!doctype html>`. This is fixed (the app loads remote weights from
+the model CDN in default mode and only reads `/models/` in strict mode), and
+retrieval now degrades to lexical-only if the semantic model can't load at all.
+If you still see it after updating:
+
+- **Unregister a stale service worker.** Earlier builds registered the SW in dev,
+  which can keep serving old bundles. In DevTools → Application → Service
+  Workers, click *Unregister*, then hard-reload (the SW now registers in
+  production builds only). Or run in a private window.
+- **Restart the dev server** after pulling, so workers are rebuilt.
+
+**The page won't start / `SharedArrayBuffer is not defined`** — the host isn't
+sending the COOP/COEP headers; see [Deployment](#deployment). `npm run dev` and
+`npm run preview` set them automatically.
+
 ---
 
 ## Project structure

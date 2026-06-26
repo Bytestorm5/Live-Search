@@ -70,7 +70,9 @@ export class RetrievalEngine {
   }
 
   get hasSemantic(): boolean {
-    return this.vectorIndex !== null;
+    // Semantic search needs BOTH a vector index AND an embedder to embed the
+    // query at runtime. Precomputed embeddings alone aren't enough.
+    return this.vectorIndex !== null && this.embedder != null;
   }
 
   get chunkCount(): number {
@@ -97,9 +99,9 @@ export class RetrievalEngine {
     // --- Semantic ---
     let semanticHits: { id: string; score: number }[] = [];
     const semanticText = `${q.transcriptWindow} ${q.terms.join(' ')}`.trim();
-    if (this.vectorIndex && semanticText.length > 0) {
+    if (this.vectorIndex && this.embedder && semanticText.length > 0) {
       await this.init();
-      const [vec] = await this.embedder!.embed([semanticText]);
+      const [vec] = await this.embedder.embed([semanticText]);
       semanticHits = this.vectorIndex.search(vec, poolSize);
     }
     const semanticScore = new Map(semanticHits.map((h) => [h.id, h.score]));
