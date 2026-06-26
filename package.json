@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "tsx scripts/ingest.ts && vite build && playwright test",
+    "test:e2e": "tsx scripts/ingest.ts e2e/fixtures/docs-corpus && vite build && playwright test",
     "coverage": "vitest run --coverage",
     "ingest": "tsx scripts/ingest.ts"
   },

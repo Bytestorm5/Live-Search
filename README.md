@@ -71,7 +71,8 @@ OpenAI to authenticate the WebSocket. **Use a key you can rotate / restrict** (s
 
 Your docs are the corpus the app searches — provide them with the ingest CLI.
 
-Put files in `docs-corpus/` (nested folders are fine). Supported formats:
+Put files in `docs-corpus/` (nested folders are fine; this directory is
+git-ignored so your corpus stays local). Supported formats:
 
 | Format | Extension | Title from | Notes |
 |---|---|---|---|
