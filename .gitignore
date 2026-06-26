@@ -44,3 +44,5 @@ public/corpus.index.json
 
 # Downloaded model weights cached locally during development
 .models/
+# Self-hosted model assets fetched by `npm run setup:assets` (derived artifacts)
+public/models/

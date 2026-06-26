@@ -7,12 +7,17 @@
     <!--
       Privacy egress lock (architecture spec §7.1).
 
-      `connect-src 'self'` makes it structurally impossible for the page to POST
-      audio or transcript text to any third party — the browser refuses the
-      request before it leaves the tab, and any skeptical user can verify this
-      in DevTools. `'wasm-unsafe-eval'` is required to compile the ONNX Runtime
-      WebAssembly; `worker-src blob:` is required because ORT spawns its wasm
-      threads from blob workers.
+      The `connect-src` is restricted so the page cannot POST audio or transcript
+      text to arbitrary endpoints — the browser refuses the request before it
+      leaves the tab, and any skeptical user can verify this in DevTools. By
+      default it allows ONLY the Hugging Face model origin (for first-load weight
+      downloads, spec §7.1 "'self' or only the model origin"); audio/transcripts
+      are still never sent because no code path POSTs them and only GETs reach HF.
+
+      STRICT / air-gapped mode (spec §7.2): self-host the weights under /models/
+      (set VITE_ALLOW_REMOTE_MODELS=false) and reduce `connect-src` to just
+      'self'. `'wasm-unsafe-eval'` is required to compile the ONNX Runtime
+      WebAssembly; `worker-src blob:` because ORT spawns wasm threads from blobs.
 
       NOTE: A CSP delivered as an HTTP *header* is stronger than this meta tag
       (a header cannot be stripped by an injected <meta>). Production hosts
@@ -27,7 +32,7 @@
         style-src 'self' 'unsafe-inline';
         img-src 'self' data:;
         font-src 'self';
-        connect-src 'self';
+        connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co;
         object-src 'none';
         base-uri 'self';
         form-action 'none';
@@ -36,7 +41,6 @@
     />
 
     <title>Live Search — Private Live Transcription &amp; Docs Lookup</title>
-    <link rel="stylesheet" href="/src/ui/styles.css" />
   </head>
   <body>
     <div id="app" aria-live="polite"></div>

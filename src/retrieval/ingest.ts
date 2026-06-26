@@ -10,7 +10,7 @@
 import type { AppConfig } from '../config.ts';
 import { Bm25Index } from './bm25.ts';
 import { chunkCorpus } from './chunk.ts';
-import { tokenize } from './tokenize.ts';
+import { STOPWORDS, tokenize } from './tokenize.ts';
 import type { CorpusIndex, EmbeddingsData, RawDoc } from './types.ts';
 import { buildVocabulary } from '../terms/vocabulary.ts';
 import { extractCandidateTerms } from '../terms/extract.ts';
@@ -26,6 +26,9 @@ function collectVocabularyTerms(docs: RawDoc[]): string[] {
       includeBigrams: false,
       minLength: 4,
     })) {
+      // Drop sentence-initial capitalized stopwords (e.g. "The") that the
+      // extractor flags as salient — they would only cause noisy corrections.
+      if (STOPWORDS.has(t.toLowerCase())) continue;
       terms.push(t);
     }
   }
