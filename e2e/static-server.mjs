@@ -26,13 +26,6 @@ const TYPES = {
 
 export function startStaticServer(root, port = 0) {
   const server = createServer(async (req, res) => {
-    const isolation = {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Resource-Policy': 'same-origin',
-    };
-    for (const [k, v] of Object.entries(isolation)) res.setHeader(k, v);
-
     const url = new URL(req.url ?? '/', 'http://localhost');
     let pathname = decodeURIComponent(url.pathname);
     if (pathname.endsWith('/')) pathname += 'index.html';

@@ -84,4 +84,10 @@ body {
 
 .transcript-log { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .transcript-line { margin: 0; padding: 6px 10px; background: var(--panel-2); border-radius: 6px; font-size: 13.5px; }
-.transcript-line[data-reason="maxLength"] { border-left: 2px solid var(--warn); }
+.transcript-line.interim { background: transparent; color: var(--muted); font-style: italic; min-height: 1.2em; padding-top: 4px; }
+
+/* Settings extras */
+.settings .key-label { display: flex; flex-direction: column; }
+.key-input { min-width: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.checkbox-label { flex-direction: row !important; align-items: center; gap: 8px; }
+.checkbox-label input { width: auto; }

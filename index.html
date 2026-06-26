@@ -5,23 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!--
-      Privacy egress lock (architecture spec §7.1).
+      Content-Security-Policy.
 
-      The `connect-src` is restricted so the page cannot POST audio or transcript
-      text to arbitrary endpoints — the browser refuses the request before it
-      leaves the tab, and any skeptical user can verify this in DevTools. By
-      default it allows ONLY the Hugging Face model origin (for first-load weight
-      downloads, spec §7.1 "'self' or only the model origin"); audio/transcripts
-      are still never sent because no code path POSTs them and only GETs reach HF.
+      `connect-src` is restricted to this origin plus the OpenAI API (the only
+      external service): audio is streamed to wss://api.openai.com for
+      transcription, and nothing can be POSTed elsewhere. `https://*.hf.co` /
+      `huggingface.co` are only needed if you enable the OPTIONAL local semantic
+      search (MiniLM); remove them otherwise. `'wasm-unsafe-eval'` + `worker-src
+      blob:` are only required by that optional ONNX Runtime path.
 
-      STRICT / air-gapped mode (spec §7.2): self-host the weights under /models/
-      (set VITE_ALLOW_REMOTE_MODELS=false) and reduce `connect-src` to just
-      'self'. `'wasm-unsafe-eval'` is required to compile the ONNX Runtime
-      WebAssembly; `worker-src blob:` because ORT spawns wasm threads from blobs.
-
-      NOTE: A CSP delivered as an HTTP *header* is stronger than this meta tag
-      (a header cannot be stripped by an injected <meta>). Production hosts
-      should send the equivalent header — see public/_headers.
+      A CSP delivered as an HTTP header is stronger than this meta tag; production
+      hosts should send the equivalent header — see public/_headers.
     -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -32,7 +26,7 @@
         style-src 'self' 'unsafe-inline';
         img-src 'self' data:;
         font-src 'self';
-        connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co;
+        connect-src 'self' https://api.openai.com wss://api.openai.com https://huggingface.co https://*.huggingface.co https://*.hf.co;
         object-src 'none';
         base-uri 'self';
         form-action 'none';
@@ -40,7 +34,7 @@
       "
     />
 
-    <title>Live Search — Private Live Transcription &amp; Docs Lookup</title>
+    <title>Live Search — Live Transcription &amp; Docs Lookup</title>
   </head>
   <body>
     <div id="app" aria-live="polite"></div>

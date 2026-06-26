@@ -4,7 +4,8 @@
  * mean-pooled, L2-normalized sentence vectors.
  */
 import type { EmbeddingModel } from './embedding.ts';
-import type { ExecutionProvider } from '../asr/types.ts';
+
+type Device = 'webgpu' | 'wasm';
 
 type FeaturePipe = (
   texts: string[],
@@ -17,9 +18,9 @@ export class MiniLmEmbedder implements EmbeddingModel {
   readonly id = MINILM_REPO;
   readonly dim = 384;
   private pipe: FeaturePipe | null = null;
-  private readonly provider: ExecutionProvider;
+  private readonly provider: Device;
 
-  constructor(provider: ExecutionProvider = 'wasm') {
+  constructor(provider: Device = 'wasm') {
     this.provider = provider;
   }
 

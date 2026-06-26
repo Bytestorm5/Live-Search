@@ -2,60 +2,36 @@
  * AudioWorklet capture processor (architecture spec §5.1).
  *
  * Runs on the audio rendering thread so capture is never blocked by main-thread
- * UI jank. It writes mono Float32 frames at the AudioContext's native sample
- * rate into a lock-free SharedArrayBuffer ring buffer; downsampling to 16 kHz is
- * done downstream in the VAD worker (reusing the tested Resampler).
+ * UI jank. It batches mono Float32 samples at the AudioContext's native rate and
+ * posts them to the main thread, which resamples to 24 kHz and streams PCM16 to
+ * the OpenAI Realtime API. Plain dependency-free JS because AudioWorklet global
+ * scope does not support ES module imports.
  *
- * This file is intentionally plain, dependency-free JavaScript: AudioWorklet
- * global scope does not support ES module imports, so the ring-buffer write is
- * inlined here. Its memory layout MUST match src/audio/ringBuffer.ts:
- *   Int32 header [write, read, dropped, storageCapacity] then Float32 data.
+ * No SharedArrayBuffer is used, so the page does not need cross-origin isolation.
  */
-
-const I_WRITE = 0;
-const I_READ = 1;
-const I_DROPPED = 2;
-const I_CAPACITY = 3;
-const HEADER_INTS = 4;
-const HEADER_BYTES = HEADER_INTS * 4;
+const BATCH = 2048; // ~43 ms at 48 kHz; keeps postMessage frequency reasonable
 
 class CaptureProcessor extends AudioWorkletProcessor {
-  constructor(options) {
+  constructor() {
     super();
-    const sab = options.processorOptions.sab;
-    this.header = new Int32Array(sab, 0, HEADER_INTS);
-    this.capacity = Atomics.load(this.header, I_CAPACITY);
-    this.data = new Float32Array(sab, HEADER_BYTES, this.capacity);
-  }
-
-  availableWrite() {
-    const w = Atomics.load(this.header, I_WRITE);
-    const r = Atomics.load(this.header, I_READ);
-    const used = (w - r + this.capacity) % this.capacity;
-    return this.capacity - 1 - used;
-  }
-
-  write(frame) {
-    const free = this.availableWrite();
-    const toWrite = Math.min(free, frame.length);
-    if (toWrite > 0) {
-      let w = Atomics.load(this.header, I_WRITE);
-      const firstChunk = Math.min(toWrite, this.capacity - w);
-      this.data.set(frame.subarray(0, firstChunk), w);
-      if (firstChunk < toWrite) this.data.set(frame.subarray(firstChunk, toWrite), 0);
-      w = (w + toWrite) % this.capacity;
-      Atomics.store(this.header, I_WRITE, w);
-    }
-    const overflow = frame.length - toWrite;
-    if (overflow > 0) Atomics.add(this.header, I_DROPPED, overflow);
+    this.buffer = new Float32Array(BATCH);
+    this.offset = 0;
   }
 
   process(inputs) {
     const input = inputs[0];
-    if (input && input.length > 0 && input[0] && input[0].length > 0) {
-      this.write(input[0]); // channel 0 (mono)
+    if (!input || input.length === 0 || !input[0]) return true;
+    const channel = input[0];
+    for (let i = 0; i < channel.length; i++) {
+      this.buffer[this.offset++] = channel[i];
+      if (this.offset === BATCH) {
+        // Transfer a copy so we don't hand off our reused buffer.
+        const out = this.buffer.slice(0);
+        this.port.postMessage(out, [out.buffer]);
+        this.offset = 0;
+      }
     }
-    return true; // keep the processor alive on a continuously open mic
+    return true; // keep alive on a continuously open mic
   }
 }
 

@@ -1,5 +1,14 @@
 # Live Transcription & Documentation Lookup — Architecture Specification
 
+> **Implementation note (superseded in part).** This document describes the
+> original fully on-device design. In practice the ~175 MB first-load ASR model
+> download was a poor, unreliable experience, so the **transcription stage was
+> moved to the OpenAI Realtime API** (server-side VAD + ASR). The §5.2 (Silero
+> VAD) and §5.3 (local Moonshine/Whisper) stages are therefore not in the
+> shipped build; everything else — term extraction & vocabulary-constrained
+> correction (§5.4), hybrid local retrieval (§5.5), and presentation (§5.6) —
+> is implemented as written. See the README for the as-built architecture.
+
 **Status:** Draft v1
 **Scope:** Client-side, privacy-first live speech transcription that drives real-time documentation retrieval.
 **Audience:** Engineers implementing or reviewing the system.
