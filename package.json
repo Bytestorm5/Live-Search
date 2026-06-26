@@ -16,8 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
-    "ingest": "tsx scripts/ingest.ts",
-    "setup:assets": "node scripts/setup-assets.mjs"
+    "ingest": "tsx scripts/ingest.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.3.3",

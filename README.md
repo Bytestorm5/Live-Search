@@ -51,9 +51,6 @@ rolling transcript window.
 ```bash
 npm install
 
-# (optional, STRICT mode only) self-host the ~2 MB Silero VAD model:
-npm run setup:assets
-
 # Build the documentation index from docs-corpus/ (sample docs are included):
 npm run ingest
 
@@ -62,9 +59,10 @@ npm run dev
 ```
 
 Open the printed URL, click **Start listening**, and grant microphone access.
-On first run the ASR/embedding model weights (~175 MB) download from the Hugging
-Face CDN and are then cached for offline use. WebGPU is used when available, with
-an automatic WASM fallback (a slower-latency warning is shown).
+The ~2 MB Silero VAD model is bundled with the app (no setup step). On first run
+the ASR/embedding model weights (~175 MB) download from the Hugging Face CDN and
+are then cached for offline use. WebGPU is used when available, with an automatic
+WASM fallback (a slower-latency warning is shown).
 
 > **Browser support:** Chromium 113+ or recent Safari with WebGPU. Firefox
 > generally needs a flag for WebGPU and will use the WASM fallback (spec §11).
@@ -141,15 +139,17 @@ Both modes are spec-compliant — §7.1 permits `connect-src` limited to `'self'
 
 | | **Default** | **Strict / air-gapped** |
 |---|---|---|
-| Model weights | Hugging Face CDN on first load, then SW-cached | self-hosted under `public/models/` |
+| ASR + embedding weights | Hugging Face CDN on first load, then SW-cached | self-hosted under `public/models/` |
+| VAD (Silero) | bundled same-origin asset | bundled same-origin asset |
 | `VITE_ALLOW_REMOTE_MODELS` | `true` | `false` |
 | CSP `connect-src` | `'self'` + `*.huggingface.co` | `'self'` only |
 | Audio/transcript egress | none (no code path sends them) | none |
 
 To go strict: copy `.env.example` to `.env`, set `VITE_ALLOW_REMOTE_MODELS=false`,
-run `npm run setup:assets` (fetches Silero), mirror the ASR + MiniLM repos under
-`public/models/<repo>/`, and drop the `huggingface.co`/`hf.co` entries from the
-CSP in `index.html` and `public/_headers`.
+mirror the ASR + MiniLM repos under `public/models/<repo>/` (Silero is already
+bundled), and drop the `huggingface.co`/`hf.co` entries from the CSP in
+`index.html` and `public/_headers`. When remote models are disabled,
+Transformers.js loads from `/models/` only.
 
 In **either** mode, audio and transcripts never leave the device: no code path
 POSTs them, and the CSP only permits GETs to the model origin. You can confirm

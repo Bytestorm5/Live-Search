@@ -22,7 +22,7 @@ export interface SegmentMessage {
 // --- VAD worker ---
 
 export type VadInbound =
-  | { type: 'init'; sab: SharedArrayBuffer; inputSampleRate: number; targetSampleRate: number; vad: VadConfig; modelUrl: string; ortBasePath: string }
+  | { type: 'init'; sab: SharedArrayBuffer; inputSampleRate: number; targetSampleRate: number; vad: VadConfig; ortBasePath: string; modelUrl?: string }
   | { type: 'start' }
   | { type: 'stop' };
 

@@ -14,7 +14,7 @@ import { selectProvider } from '../asr/provider.ts';
 import type { ExecutionProvider } from '../asr/types.ts';
 import { startCapture } from '../audio/capture.ts';
 import type { CaptureHandle } from '../audio/capture.ts';
-import { MODEL_ENV, SILERO_VAD_URL } from '../modelEnv.ts';
+import { MODEL_ENV } from '../modelEnv.ts';
 import type { CorpusIndex, SearchHit } from '../retrieval/types.ts';
 import type { SegmentReason } from '../vad/segmenter.ts';
 import { RollingTranscript } from './transcript.ts';
@@ -191,8 +191,8 @@ export class Orchestrator {
       inputSampleRate: this.capture.sampleRate,
       targetSampleRate: this.config.audio.sampleRate,
       vad: this.config.vad,
-      modelUrl: SILERO_VAD_URL,
       ortBasePath: MODEL_ENV.ortWasmPath,
+      // modelUrl omitted -> VAD worker uses the bundled same-origin Silero asset.
     };
     worker.postMessage(init);
     this.vadWorker = worker;

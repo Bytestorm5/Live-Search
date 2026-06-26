@@ -9,9 +9,14 @@
  * {@link ../vad/segmenter.ts}.
  */
 import * as ort from 'onnxruntime-web';
+// Bundled as a same-origin asset by Vite (served from /assets). This keeps the
+// VAD model self-hosted with no setup step and no CDN entry in the CSP — it
+// satisfies both the default and the strict/air-gapped privacy modes (spec §7).
+import bundledSileroUrl from './silero_vad.onnx?url';
 
 export interface SileroVadOptions {
-  modelUrl: string;
+  /** Override the model URL; defaults to the bundled same-origin asset. */
+  modelUrl?: string;
   ortWasmPath?: string;
   sampleRate?: number;
 }
@@ -30,8 +35,8 @@ export class SileroVad {
   private probOut = 'output';
   private stateOut = 'stateN';
 
-  constructor(opts: SileroVadOptions) {
-    this.modelUrl = opts.modelUrl;
+  constructor(opts: SileroVadOptions = {}) {
+    this.modelUrl = opts.modelUrl || bundledSileroUrl;
     this.sampleRate = opts.sampleRate ?? 16_000;
     if (opts.ortWasmPath) ort.env.wasm.wasmPaths = opts.ortWasmPath;
     this.state = SileroVad.zeroState();

@@ -26,9 +26,6 @@ export const MODEL_ENV: ModelEnv = {
   ortWasmPath: '',
 };
 
-/** URL of the self-hosted Silero VAD model (used in STRICT mode). */
-export const SILERO_VAD_URL = `${MODEL_ENV.localModelPath}silero_vad.onnx`;
-
 /**
  * Apply the Transformers.js global environment. Called inside any worker that
  * loads a Transformers.js model. Uses dynamic typing because the env shape is
@@ -43,7 +40,12 @@ export async function configureTransformersEnv(modelEnv: ModelEnv): Promise<void
     backends?: { onnx?: { wasm?: { wasmPaths?: string } } };
   };
   e.allowRemoteModels = modelEnv.allowRemoteModels;
-  e.allowLocalModels = true;
+  // CRITICAL: when remote models are allowed (default), DISABLE local lookups.
+  // Otherwise Transformers.js probes `${localModelPath}<repo>/config.json` first,
+  // and a static host's SPA fallback returns index.html (200) for the missing
+  // file — which then fails JSON.parse with "unexpected character at line 1
+  // column 1". Only enable local model loading in strict/self-host mode.
+  e.allowLocalModels = !modelEnv.allowRemoteModels;
   e.localModelPath = modelEnv.localModelPath;
   const wasm = e.backends?.onnx?.wasm;
   if (wasm && modelEnv.ortWasmPath) wasm.wasmPaths = modelEnv.ortWasmPath;
