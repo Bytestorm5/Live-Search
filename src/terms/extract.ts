@@ -14,13 +14,23 @@ export interface ExtractOptions {
   minLength?: number;
   /** Emit adjacent content-word bigrams in addition to unigrams. */
   includeBigrams?: boolean;
+  /**
+   * Optional rarity oracle. A capitalized/identifier token is only treated as a
+   * salient proper noun if it is NOT common in the corpus — so frequent words
+   * like "Wonderful" at the start of a sentence aren't mistaken for domain terms
+   * (spec §5.4). Receives the lowercased token.
+   */
+  isCommon?: (lowerToken: string) => boolean;
 }
 
-/** A surface token with a flag for "looks like a name/identifier". */
+/** A surface token, distinguishing code identifiers from proper nouns. */
 interface Surface {
   raw: string;
   lower: string;
-  salient: boolean;
+  /** camelCase / dotted / symbol — always meaningful regardless of rarity. */
+  identifier: boolean;
+  /** Capitalized word or acronym — a proper noun ONLY if rare in the corpus. */
+  properNoun: boolean;
 }
 
 function splitSurfaces(text: string): Surface[] {
@@ -36,7 +46,7 @@ function splitSurfaces(text: string): Surface[] {
     const isCapitalized = /^[A-Z][a-z]+/.test(tok);
     const isAcronym = /^[A-Z0-9]{2,}$/.test(tok);
     const isIdentifier = /[a-z][A-Z]|[A-Za-z][0-9]|[0-9][A-Za-z]|[._-]/.test(tok);
-    out.push({ raw: tok, lower, salient: isCapitalized || isAcronym || isIdentifier });
+    out.push({ raw: tok, lower, identifier: isIdentifier, properNoun: isCapitalized || isAcronym });
   }
   return out;
 }
@@ -44,6 +54,7 @@ function splitSurfaces(text: string): Surface[] {
 export function extractCandidateTerms(text: string, opts: ExtractOptions = {}): string[] {
   const minLength = opts.minLength ?? 3;
   const includeBigrams = opts.includeBigrams ?? true;
+  const isCommon = opts.isCommon ?? (() => false);
   const surfaces = splitSurfaces(text);
 
   const ordered: string[] = [];
@@ -56,22 +67,27 @@ export function extractCandidateTerms(text: string, opts: ExtractOptions = {}): 
     }
   };
 
+  // A token is salient if it's a code identifier, or a proper noun that is rare
+  // in the corpus (common capitalized words are NOT salient).
+  const salient = (s: Surface) => s.identifier || (s.properNoun && !isCommon(s.lower));
   const isContent = (s: Surface) =>
-    s.salient || (s.lower.length >= minLength && !STOPWORDS.has(s.lower));
+    salient(s) || (s.lower.length >= minLength && !STOPWORDS.has(s.lower));
 
   for (let i = 0; i < surfaces.length; i++) {
     const s = surfaces[i];
-    // Salient tokens always qualify; otherwise require content-word criteria.
-    if (s.salient || (s.lower.length >= minLength && !STOPWORDS.has(s.lower))) {
-      add(s.raw);
-    }
+    if (isContent(s)) add(s.raw);
     if (includeBigrams && i + 1 < surfaces.length) {
       const next = surfaces[i + 1];
-      if (isContent(s) && isContent(next)) {
-        add(`${s.raw} ${next.raw}`);
-      }
+      if (isContent(s) && isContent(next)) add(`${s.raw} ${next.raw}`);
     }
   }
 
   return ordered;
+}
+
+/** True if a candidate term is a salient proper noun / identifier (rarity-aware). */
+export function isSalientTerm(token: string, isCommon: (lower: string) => boolean = () => false): boolean {
+  const [s] = splitSurfaces(token);
+  if (!s) return false;
+  return s.identifier || (s.properNoun && !isCommon(s.lower));
 }

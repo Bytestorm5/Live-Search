@@ -32,6 +32,22 @@ export class Bm25Index {
     this.data = data;
   }
 
+  /** Number of indexed documents (chunks). */
+  get docCount(): number {
+    return this.data.docCount;
+  }
+
+  /** Document frequency of a term (how many chunks contain it). */
+  docFrequency(term: string): number {
+    return this.data.postings[term]?.length ?? 0;
+  }
+
+  /** Fraction of chunks containing the term, in [0, 1] (a rarity signal). */
+  documentRatio(term: string): number {
+    if (this.data.docCount === 0) return 0;
+    return this.docFrequency(term) / this.data.docCount;
+  }
+
   /** Build an index from tokenized documents. */
   static build(docs: DocTokens[], opts: Bm25Options): Bm25Index {
     const postings: Bm25IndexData['postings'] = Object.create(null);

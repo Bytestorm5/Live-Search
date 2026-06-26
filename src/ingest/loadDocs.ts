@@ -9,6 +9,7 @@
  * domain vocabulary live (spec §5.4).
  */
 import type { RawDoc } from '../retrieval/types.ts';
+import { frontmatterToDoc, parseFrontmatter } from './frontmatter.ts';
 
 /** Reduce Markdown to plain text, preserving code/identifier content. */
 export function stripMarkdown(md: string): string {
@@ -114,6 +115,25 @@ export function parseDocFile(file: SourceFile): RawDoc[] {
 
   // Markdown / text.
   const isMarkdown = ext === 'md' || ext === 'markdown';
+  if (isMarkdown) {
+    const fm = parseFrontmatter(file.content);
+    if (fm) {
+      const doc = frontmatterToDoc(fm);
+      const body = stripMarkdown(doc.body);
+      const text = [doc.lead, body].filter(Boolean).join('\n\n').trim();
+      if (!text) return [];
+      const raw: RawDoc = {
+        id,
+        title: doc.title ?? firstMarkdownHeading(doc.body) ?? baseName(file.path),
+        text,
+      };
+      if (doc.url) raw.url = doc.url;
+      if (doc.boostTerms.length) raw.boostTerms = doc.boostTerms;
+      if (Object.keys(doc.meta).length) raw.meta = doc.meta;
+      return [raw];
+    }
+  }
+
   const text = isMarkdown ? stripMarkdown(file.content) : file.content.trim();
   if (!text) return [];
   const title = (isMarkdown ? firstMarkdownHeading(file.content) : null) ?? baseName(file.path);

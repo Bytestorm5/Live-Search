@@ -15,8 +15,13 @@ import { embedChunks } from './embedding.ts';
 import { reciprocalRankFusion } from './fusion.ts';
 import { makeSnippet } from './snippet.ts';
 import { tokenize } from './tokenize.ts';
+import { extractCandidateTerms } from '../terms/extract.ts';
+import { isCommonWord } from '../terms/commonWords.ts';
 import type { CorpusIndex, DocChunk, RetrievalQuery, SearchHit } from './types.ts';
 import { VectorIndex } from './vectorIndex.ts';
+
+/** A query term in more than this fraction of chunks isn't treated as salient. */
+const QUERY_COMMON_FRACTION = 0.3;
 
 export interface RetrievalEngineOptions {
   index: CorpusIndex;
@@ -82,6 +87,17 @@ export class RetrievalEngine {
   /** Apply vocabulary-constrained correction to candidate terms (spec §5.4). */
   correct(terms: string[]): string[] {
     return this.corrector.correctTerms(terms);
+  }
+
+  /**
+   * Extract candidate query terms from a transcript, rarity-aware (common
+   * capitalized words aren't treated as proper nouns, spec §5.4), then correct
+   * them against the known vocabulary.
+   */
+  candidateTerms(text: string): { rawTerms: string[]; correctedTerms: string[] } {
+    const isCommon = (lower: string) => isCommonWord(lower) || this.bm25.documentRatio(lower) > QUERY_COMMON_FRACTION;
+    const rawTerms = extractCandidateTerms(text, { isCommon });
+    return { rawTerms, correctedTerms: this.correct(rawTerms) };
   }
 
   /** Run a hybrid query and return the top-k de-duplicated hits. */

@@ -17,7 +17,6 @@ import { rms, toMeterLevel } from '../audio/level.ts';
 import { OpenAIRealtimeTranscriber } from '../asr/openaiRealtime.ts';
 import type { TranscriptionSettings } from '../asr/realtimeEvents.ts';
 import { RetrievalEngine } from '../retrieval/engine.ts';
-import { extractCandidateTerms } from '../terms/extract.ts';
 import { configureTransformersEnv } from '../modelEnv.ts';
 import type { CorpusIndex, SearchHit } from '../retrieval/types.ts';
 import { RollingTranscript } from './transcript.ts';
@@ -237,8 +236,7 @@ export class Orchestrator {
     this.transcript.append(clean);
     if (!this.engine) return;
 
-    const rawTerms = extractCandidateTerms(clean);
-    const correctedTerms = this.engine.correct(rawTerms);
+    const { rawTerms, correctedTerms } = this.engine.candidateTerms(clean);
     const hits = await this.engine.query({
       terms: correctedTerms,
       transcriptWindow: this.transcript.window,

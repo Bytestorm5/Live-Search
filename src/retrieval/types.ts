@@ -16,6 +16,11 @@ export interface RawDoc {
   url?: string;
   /** Optional free-form metadata (section, tags, ...). */
   meta?: Record<string, string>;
+  /**
+   * Proper-noun / domain terms (e.g. frontmatter name + traits) that should be
+   * weighted heavily in retrieval (spec §5.4). Applied to every chunk of the doc.
+   */
+  boostTerms?: string[];
 }
 
 /**
