@@ -15,6 +15,7 @@ import type { CorpusIndex, SearchHit } from '../retrieval/types.ts';
 import type { NoiseReduction, TranscriptionModel } from '../asr/realtimeEvents.ts';
 import { el } from './dom.ts';
 import { renderResults } from './render.ts';
+import { AgentModal } from './agentModal.ts';
 
 const KEY_STORAGE = 'live-search.openai-api-key';
 
@@ -29,6 +30,7 @@ export class App {
   private orchestrator: Orchestrator | null = null;
   private listening = false;
   private interim = '';
+  private agentModal: AgentModal | null = null;
 
   private startBtn!: HTMLButtonElement;
   private statusBar!: HTMLElement;
@@ -44,6 +46,8 @@ export class App {
   private noiseSelect!: HTMLSelectElement;
   private semanticToggle!: HTMLInputElement;
   private resultCount!: HTMLInputElement;
+  private agentToggle!: HTMLInputElement;
+  private agentModelInput!: HTMLInputElement;
 
   constructor(opts: AppOptions) {
     this.index = opts.index;
@@ -153,6 +157,17 @@ export class App {
     this.semanticToggle = el('input', { class: 'setting', type: 'checkbox', title: 'Local semantic search (downloads ~25 MB MiniLM)' }) as HTMLInputElement;
     this.semanticToggle.checked = this.config.retrieval.semantic;
 
+    this.agentToggle = el('input', { class: 'setting', type: 'checkbox', title: 'PF2e GM assistant: classify each sentence and answer when warranted' }) as HTMLInputElement;
+    this.agentToggle.checked = this.config.agent.enabled;
+
+    this.agentModelInput = el('input', {
+      class: 'setting',
+      type: 'text',
+      value: this.config.agent.answererModel,
+      size: '16',
+      title: 'OpenAI model for the GM assistant (classifier + answerer)',
+    }) as HTMLInputElement;
+
     this.resultCount = el('input', {
       class: 'setting',
       type: 'range',
@@ -173,6 +188,8 @@ export class App {
       el('label', {}, 'Noise reduction', this.noiseSelect),
       el('label', { class: 'checkbox-label' }, this.semanticToggle, 'Semantic search (extra download)'),
       el('label', {}, 'Results', this.resultCount),
+      el('label', { class: 'checkbox-label' }, this.agentToggle, 'GM assistant (PF2e)'),
+      el('label', {}, 'Assistant model', this.agentModelInput),
     );
   }
 
@@ -208,9 +225,11 @@ export class App {
         onTranscript: (e) => this.appendTranscript(e),
         onResults: (hits, info) => this.renderResults(hits, info),
         onMicLevel: (level) => this.setMicLevel(level),
+        onAgentResponse: (result) => this.agentModal?.show(result),
         onError: (m) => this.showError(m),
       },
     });
+    this.agentModal = new AgentModal(this.config.agent.timeoutMs);
 
     await this.orchestrator.start();
     this.listening = true;
@@ -222,6 +241,7 @@ export class App {
   private async stop(): Promise<void> {
     await this.orchestrator?.stop();
     this.orchestrator = null;
+    this.agentModal?.close();
     this.listening = false;
     this.startBtn.textContent = 'Start listening';
     this.startBtn.classList.remove('btn-stop');
@@ -244,12 +264,17 @@ export class App {
         topK: Number(this.resultCount.value),
         semantic: this.semanticToggle.checked,
       },
+      agent: {
+        enabled: this.agentToggle.checked,
+        classifierModel: this.agentModelInput.value.trim() || 'gpt-5.4-nano',
+        answererModel: this.agentModelInput.value.trim() || 'gpt-5.4-nano',
+      },
     };
     return makeConfig(overrides);
   }
 
   private setSettingsDisabled(disabled: boolean): void {
-    for (const c of [this.apiKeyInput, this.sourceSelect, this.modelSelect, this.languageInput, this.noiseSelect, this.semanticToggle, this.resultCount]) {
+    for (const c of [this.apiKeyInput, this.sourceSelect, this.modelSelect, this.languageInput, this.noiseSelect, this.semanticToggle, this.resultCount, this.agentToggle, this.agentModelInput]) {
       c.disabled = disabled;
     }
   }

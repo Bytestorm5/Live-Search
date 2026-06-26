@@ -20,6 +20,9 @@ import { RetrievalEngine } from '../retrieval/engine.ts';
 import { configureTransformersEnv } from '../modelEnv.ts';
 import type { CorpusIndex, SearchHit } from '../retrieval/types.ts';
 import { RollingTranscript } from './transcript.ts';
+import { GmAgent } from '../agent/gmAgent.ts';
+import type { DocContext, GmAgentResult } from '../agent/gmAgent.ts';
+import type { ChatFn } from '../agent/openaiChat.ts';
 
 export type ConnectionState = 'idle' | 'connecting' | 'live' | 'error';
 
@@ -43,6 +46,8 @@ export interface OrchestratorCallbacks {
   onResults(hits: SearchHit[], info: ResultsInfo): void;
   /** Live mic level in [0, 1] for the meter (also confirms frames are flowing). */
   onMicLevel(level: number): void;
+  /** A proactive GM-assistant response (when the agent decides to respond). */
+  onAgentResponse(result: GmAgentResult): void;
   onError(message: string): void;
 }
 
@@ -53,6 +58,8 @@ export interface OrchestratorOptions {
   organization?: string;
   project?: string;
   callbacks: OrchestratorCallbacks;
+  /** Injectable chat function for the agent (tests). */
+  chat?: ChatFn;
 }
 
 export class Orchestrator {
@@ -67,6 +74,8 @@ export class Orchestrator {
   private resampler: Resampler | null = null;
   private transcriber: OpenAIRealtimeTranscriber | null = null;
   private engine: RetrievalEngine | null = null;
+  private readonly agent: GmAgent | null;
+  private agentAbort: AbortController | null = null;
 
   private readonly transcript: RollingTranscript;
   private displayed: SearchHit[] = [];
@@ -92,6 +101,16 @@ export class Orchestrator {
     if (opts.project) this.project = opts.project;
     this.cb = opts.callbacks;
     this.transcript = new RollingTranscript(opts.config.retrieval.transcriptWindowChars);
+
+    this.agent =
+      opts.config.agent.enabled && opts.apiKey
+        ? new GmAgent({
+            apiKey: opts.apiKey,
+            classifierModel: opts.config.agent.classifierModel,
+            answererModel: opts.config.agent.answererModel,
+            ...(opts.chat ? { chat: opts.chat } : {}),
+          })
+        : null;
   }
 
   get hasRetrieval(): boolean {
@@ -163,6 +182,8 @@ export class Orchestrator {
       clearTimeout(this.audioWatchdog);
       this.audioWatchdog = null;
     }
+    this.agentAbort?.abort();
+    this.agentAbort = null;
     this.transcriber?.close();
     this.transcriber = null;
     await this.capture?.stop();
@@ -244,6 +265,33 @@ export class Orchestrator {
       excludeChunkIds: [...this.shownIds],
     });
     this.cb.onResults(this.mergeResults(hits), { rawTerms, correctedTerms });
+
+    // GM assistant: classify the sentence and answer if warranted (spec: agent).
+    if (this.agent) this.runAgent(clean, hits);
+  }
+
+  private runAgent(text: string, hits: SearchHit[]): void {
+    if (!this.agent) return;
+    // Only the most recent sentence matters — abort any in-flight agent call.
+    this.agentAbort?.abort();
+    const abort = new AbortController();
+    this.agentAbort = abort;
+
+    const docs: DocContext[] = hits.slice(0, 4).map((h) => {
+      const doc: DocContext = { title: h.chunk.title, text: h.chunk.text.slice(0, 1000) };
+      if (h.chunk.url) doc.url = h.chunk.url;
+      return doc;
+    });
+
+    this.agent
+      .handle(text, this.transcript.window, docs, abort.signal)
+      .then((result) => {
+        if (result && this.agentAbort === abort) this.cb.onAgentResponse(result);
+      })
+      .catch((err) => {
+        if (abort.signal.aborted) return; // superseded by a newer sentence
+        this.cb.onError(`GM assistant: ${String(err instanceof Error ? err.message : err)}`);
+      });
   }
 
   /** Merge fresh hits to the front, keeping the panel de-duplicated and bounded. */

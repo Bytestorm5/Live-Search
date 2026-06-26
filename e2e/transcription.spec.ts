@@ -44,6 +44,17 @@ test('transcript from OpenAI drives a local documentation result', async ({ page
   });
   page.on('pageerror', (e) => errors.push(String(e)));
 
+  // Mock the GM-assistant chat endpoint: the classifier (requests JSON) says
+  // "question"; the answerer returns prose.
+  await page.route('**/v1/chat/completions', async (route) => {
+    const body = route.request().postData() ?? '';
+    const isClassifier = body.includes('response_format');
+    const content = isClassifier
+      ? '{"kind":"question","topic":"webgpu"}'
+      : 'Moonshine is a fast ASR model and WebGPU accelerates it in the browser.';
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ choices: [{ message: { content } }] }) });
+  });
+
   await page.addInitScript(FAKE_WS);
   await page.goto('/');
 
@@ -59,6 +70,12 @@ test('transcript from OpenAI drives a local documentation result', async ({ page
   const card = page.locator('.result-card').first();
   await expect(card).toBeVisible({ timeout: 30_000 });
   await expect(card).toContainText(/Moonshine|WebGPU|Speech Recognition/i);
+
+  // The GM assistant proactively opens a modal with an answer + countdown bar.
+  const modal = page.locator('.agent-modal');
+  await expect(modal).toBeVisible({ timeout: 30_000 });
+  await expect(modal.locator('.agent-answer')).toContainText(/Moonshine|WebGPU|ASR/i);
+  await expect(modal.locator('.agent-progress .progress-fill')).toBeVisible();
 
   // The mic meter must show activity — proves capture frames are flowing
   // through the AudioWorklet to the app (Chromium's fake device emits a tone).

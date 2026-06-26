@@ -53,11 +53,23 @@ export interface RetrievalConfig {
   semantic: boolean;
 }
 
+export interface AgentConfig {
+  /** Run the GM assistant on each committed sentence while listening. */
+  enabled: boolean;
+  /** Light model that decides if/what to respond to (none/checking/question). */
+  classifierModel: string;
+  /** Model that writes the PF2e answer when a response is warranted. */
+  answererModel: string;
+  /** Modal auto-close timeout, ms (pauses on mouseover). */
+  timeoutMs: number;
+}
+
 export interface AppConfig {
   audio: AudioConfig;
   transcription: TranscriptionConfig;
   correction: CorrectionConfig;
   retrieval: RetrievalConfig;
+  agent: AgentConfig;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -86,6 +98,12 @@ export const DEFAULT_CONFIG: AppConfig = {
     chunkOverlapTokens: 30,
     semantic: false,
   },
+  agent: {
+    enabled: true,
+    classifierModel: 'gpt-5.4-nano',
+    answererModel: 'gpt-5.4-nano',
+    timeoutMs: 60_000,
+  },
 };
 
 /** Deep-merge a partial override onto {@link DEFAULT_CONFIG}. */
@@ -95,6 +113,7 @@ export function makeConfig(overrides: DeepPartial<AppConfig> = {}): AppConfig {
     transcription: { ...DEFAULT_CONFIG.transcription, ...overrides.transcription },
     correction: { ...DEFAULT_CONFIG.correction, ...overrides.correction },
     retrieval: { ...DEFAULT_CONFIG.retrieval, ...overrides.retrieval },
+    agent: { ...DEFAULT_CONFIG.agent, ...overrides.agent },
   };
 }
 

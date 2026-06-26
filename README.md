@@ -136,6 +136,27 @@ out of scope here but the client is structured to make it a localized change.
 
 ---
 
+## GM assistant (Pathfinder 2e)
+
+An optional agent runs on every committed sentence while listening (Settings →
+**GM assistant**, on by default):
+
+1. A light **classifier** (`gpt-5.4-nano` by default, configurable) decides if the
+   sentence warrants a response and its kind — `none` (small talk), `checking` (a
+   statement about a rule/item/spell worth confirming), or `question` (someone is
+   asking or confused).
+2. If warranted, an **answerer** responds using the documents already retrieved
+   for that sentence as grounding context (so answers cite your corpus).
+3. The response opens in a **floating modal** that auto-closes after 60 s, with a
+   progress bar showing the countdown. **The countdown pauses while your pointer
+   is over the modal**, and you can dismiss it early.
+
+Only the most recent sentence is processed (a new sentence aborts the previous
+agent call), and the classifier returns `none` for most chatter, so the steady-
+state cost is one small classifier call per sentence. Both models are set by the
+"Assistant model" field; if a model id is invalid you'll see the API error in the
+banner. Turn the whole thing off with the toggle.
+
 ## Optional: local semantic search
 
 Lexical BM25 is on by default and needs no download. Toggle **Semantic search**
