@@ -60,10 +60,24 @@ test('transcript from OpenAI drives a local documentation result', async ({ page
   await expect(card).toBeVisible({ timeout: 30_000 });
   await expect(card).toContainText(/Moonshine|WebGPU|Speech Recognition/i);
 
+  // The mic meter must show activity — proves capture frames are flowing
+  // through the AudioWorklet to the app (Chromium's fake device emits a tone).
+  await expect
+    .poll(async () => {
+      const w = await page.locator('.mic-meter-fill').evaluate((e) => parseFloat((e as HTMLElement).style.width) || 0);
+      return w;
+    }, { timeout: 10_000 })
+    .toBeGreaterThan(0);
+
+  // Wait past the 5 s audio watchdog: it only stays silent if real audio reached
+  // the socket, so this guards the capture path end to end.
+  await page.waitForTimeout(6000);
+  const banner = (await page.locator('.error-banner').textContent())?.trim() ?? '';
+  expect(banner, banner).not.toMatch(/no microphone audio/i);
+
   // No hard errors, and no model-file SPA-fallback JSON.parse regressions.
   const joined = errors.join('\n');
   expect(joined, joined).not.toMatch(/unexpected character|JSON\.parse/i);
-  expect(await page.locator('.error-banner').isVisible()).toBe(false);
 });
 
 test('refuses to start without an API key', async ({ page }) => {

@@ -13,6 +13,7 @@ import type { AppConfig } from '../config.ts';
 import { Resampler } from '../audio/resampler.ts';
 import { startCapture } from '../audio/capture.ts';
 import type { CaptureHandle } from '../audio/capture.ts';
+import { rms, toMeterLevel } from '../audio/level.ts';
 import { OpenAIRealtimeTranscriber } from '../asr/openaiRealtime.ts';
 import type { TranscriptionSettings } from '../asr/realtimeEvents.ts';
 import { RetrievalEngine } from '../retrieval/engine.ts';
@@ -41,6 +42,8 @@ export interface OrchestratorCallbacks {
   onStatus(status: PipelineStatus): void;
   onTranscript(entry: { text: string; isFinal: boolean }): void;
   onResults(hits: SearchHit[], info: ResultsInfo): void;
+  /** Live mic level in [0, 1] for the meter (also confirms frames are flowing). */
+  onMicLevel(level: number): void;
   onError(message: string): void;
 }
 
@@ -169,6 +172,7 @@ export class Orchestrator {
     this.transcript.clear();
     this.displayed = [];
     this.shownIds.clear();
+    this.cb.onMicLevel(0);
     this.emitStatus({ micActive: false, speaking: false, connection: 'idle' });
   }
 
@@ -199,6 +203,9 @@ export class Orchestrator {
   }
 
   private onFrame(frame: Float32Array): void {
+    // Mic meter first — works even before the socket opens, so the user can see
+    // the mic is live regardless of connection state.
+    this.cb.onMicLevel(toMeterLevel(rms(frame)));
     if (!this.resampler || !this.transcriber) return;
     const resampled = this.resampler.process(frame);
     if (!resampled.length) return;

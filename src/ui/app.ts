@@ -36,6 +36,7 @@ export class App {
   private transcriptLog!: HTMLElement;
   private interimLine!: HTMLElement;
   private errorBanner!: HTMLElement;
+  private micMeterFill!: HTMLElement;
   private apiKeyInput!: HTMLInputElement;
   private modelSelect!: HTMLSelectElement;
   private languageInput!: HTMLInputElement;
@@ -79,7 +80,13 @@ export class App {
       'Start listening',
     ) as HTMLButtonElement;
 
-    const controls = el('div', { class: 'controls' }, this.startBtn, this.buildSettings());
+    this.micMeterFill = el('span', { class: 'mic-meter-fill' });
+    const micMeter = el(
+      'div',
+      { class: 'mic-meter', title: 'Microphone level — should move when you speak' },
+      this.micMeterFill,
+    );
+    const controls = el('div', { class: 'controls' }, this.startBtn, micMeter, this.buildSettings());
 
     this.resultsHost = el('div', { class: 'results-host' });
     const results = el('section', { class: 'panel results-panel' }, el('h2', {}, 'Documentation'), this.resultsHost);
@@ -190,6 +197,7 @@ export class App {
         onStatus: (s) => this.renderStatus(s),
         onTranscript: (e) => this.appendTranscript(e),
         onResults: (hits, info) => this.renderResults(hits, info),
+        onMicLevel: (level) => this.setMicLevel(level),
         onError: (m) => this.showError(m),
       },
     });
@@ -265,6 +273,11 @@ export class App {
     this.interim = '';
     this.interimLine.textContent = '';
     this.transcriptLog.replaceChildren();
+  }
+
+  private setMicLevel(level: number): void {
+    this.micMeterFill.style.width = `${Math.round(Math.min(1, Math.max(0, level)) * 100)}%`;
+    this.micMeterFill.classList.toggle('active', level > 0.02);
   }
 
   private blankStatus(): PipelineStatus {

@@ -1,15 +1,17 @@
 /**
  * AudioWorklet capture processor (architecture spec §5.1).
  *
- * Runs on the audio rendering thread so capture is never blocked by main-thread
- * UI jank. It batches mono Float32 samples at the AudioContext's native rate and
- * posts them to the main thread, which resamples to 24 kHz and streams PCM16 to
- * the OpenAI Realtime API. Plain dependency-free JS because AudioWorklet global
- * scope does not support ES module imports.
+ * Batches mono Float32 samples at the AudioContext's native rate and posts them
+ * to the main thread (which resamples to 24 kHz and streams PCM16 to OpenAI).
  *
- * No SharedArrayBuffer is used, so the page does not need cross-origin isolation.
+ * It also copies input → output, matching the canonical microphone-processing
+ * pattern (web.dev) so the node is reliably pulled by the graph in every browser
+ * (notably Firefox). The output is routed through a zero-gain node on the main
+ * thread, so this passthrough is silent and causes no feedback.
+ *
+ * Plain dependency-free JS: AudioWorklet global scope has no ES module imports.
  */
-const BATCH = 2048; // ~43 ms at 48 kHz; keeps postMessage frequency reasonable
+const BATCH = 2048; // ~43 ms at 48 kHz
 
 class CaptureProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -18,18 +20,20 @@ class CaptureProcessor extends AudioWorkletProcessor {
     this.offset = 0;
   }
 
-  process(inputs) {
-    const input = inputs[0];
-    if (!input || input.length === 0 || !input[0]) return true;
-    const channel = input[0];
-    for (let i = 0; i < channel.length; i++) {
-      this.buffer[this.offset++] = channel[i];
-      if (this.offset === BATCH) {
-        // Transfer a copy so we don't hand off our reused buffer.
-        const out = this.buffer.slice(0);
-        this.port.postMessage(out, [out.buffer]);
-        this.offset = 0;
+  process(inputs, outputs) {
+    const channel = inputs[0] && inputs[0][0];
+    if (channel && channel.length) {
+      for (let i = 0; i < channel.length; i++) {
+        this.buffer[this.offset++] = channel[i];
+        if (this.offset === BATCH) {
+          const out = this.buffer.slice(0); // copy; this.buffer keeps filling
+          this.port.postMessage(out, [out.buffer]);
+          this.offset = 0;
+        }
       }
+      // Silent passthrough so the node is treated as a producing node.
+      const outChannel = outputs[0] && outputs[0][0];
+      if (outChannel) outChannel.set(channel.subarray(0, outChannel.length));
     }
     return true; // keep alive on a continuously open mic
   }
