@@ -5,7 +5,7 @@ import type { SearchHit } from '../../src/retrieval/types.ts';
 
 function hit(overrides: Partial<SearchHit> = {}): SearchHit {
   return {
-    chunk: { id: 'd#0', docId: 'd', title: 'Doc Title', text: 'body', position: 0 },
+    chunk: { id: 'd#0', docId: 'd', title: 'Doc Title', text: 'body', position: 0, charStart: 0, charEnd: 4 },
     score: 0.123456,
     snippet: 'see «AudioWorklet» here',
     matchedTerms: ['AudioWorklet'],
@@ -51,9 +51,30 @@ describe('createResultCard', () => {
   });
 
   it('renders a link when the chunk has a url', () => {
-    const card = createResultCard(hit({ chunk: { id: 'd#0', docId: 'd', title: 'T', text: 'b', position: 0, url: 'https://x/y' } }));
+    const card = createResultCard(hit({ chunk: { id: 'd#0', docId: 'd', title: 'T', text: 'b', position: 0, charStart: 0, charEnd: 1, url: 'https://x/y' } }));
     const a = card.querySelector('a');
     expect(a?.getAttribute('href')).toBe('https://x/y');
+  });
+
+  it('invokes onOpen when the card is activated', () => {
+    const opened: SearchHit[] = [];
+    const card = createResultCard(hit(), { onOpen: (h) => opened.push(h) });
+    expect(card.getAttribute('role')).toBe('button');
+    card.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(opened).toHaveLength(1);
+    expect(opened[0].chunk.id).toBe('d#0');
+  });
+
+  it('does not let the external link also trigger onOpen', () => {
+    const opened: SearchHit[] = [];
+    const card = createResultCard(
+      hit({ chunk: { id: 'd#0', docId: 'd', title: 'T', text: 'b', position: 0, charStart: 0, charEnd: 1, url: 'https://x/y' } }),
+      { onOpen: (h) => opened.push(h) },
+    );
+    const link = card.querySelector('a')!;
+    link.addEventListener('click', (e) => e.preventDefault()); // suppress jsdom navigation
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(opened).toHaveLength(0);
   });
 });
 
@@ -63,7 +84,7 @@ describe('renderResults', () => {
     expect(el.querySelector('.results-empty')).not.toBeNull();
   });
   it('renders one card per hit', () => {
-    const el = renderResults([hit({ chunk: { id: 'a#0', docId: 'a', title: 'A', text: '', position: 0 } }), hit({ chunk: { id: 'b#0', docId: 'b', title: 'B', text: '', position: 0 } })]);
+    const el = renderResults([hit({ chunk: { id: 'a#0', docId: 'a', title: 'A', text: '', position: 0, charStart: 0, charEnd: 0 } }), hit({ chunk: { id: 'b#0', docId: 'b', title: 'B', text: '', position: 0, charStart: 0, charEnd: 0 } })]);
     expect(el.querySelectorAll('.result-card')).toHaveLength(2);
   });
 });

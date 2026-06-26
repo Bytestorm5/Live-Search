@@ -31,6 +31,26 @@ describe('buildIndex', () => {
     const ids = idx.chunks.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it('retains the full source documents for the sidebar viewer', () => {
+    const idx = buildIndex(docs, config);
+    expect(idx.docs.map((d) => d.id)).toEqual(['asr', 'vad']);
+    expect(idx.docs[0].text).toContain('Moonshine');
+    // No empty url/meta keys leak in (keeps serialization stable).
+    expect(idx.docs[0].url).toBeUndefined();
+    expect(idx.docs[0].meta).toBeUndefined();
+  });
+
+  it('carries url and non-empty metadata onto doc entries', () => {
+    const withMeta: RawDoc[] = [
+      { id: 'i', title: 'Item', text: 'An armored coat.', url: 'https://x/i', meta: { rarity: 'Common' } },
+      { id: 'j', title: 'Empty', text: 'nothing here', meta: {} },
+    ];
+    const idx = buildIndex(withMeta, config);
+    expect(idx.docs[0].url).toBe('https://x/i');
+    expect(idx.docs[0].meta).toEqual({ rarity: 'Common' });
+    expect(idx.docs[1].meta).toBeUndefined(); // empty meta dropped
+  });
 });
 
 describe('withEmbeddings', () => {

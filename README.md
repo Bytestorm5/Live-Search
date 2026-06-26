@@ -30,7 +30,12 @@ mic → AudioWorklet → resample 24 kHz → PCM16 → OpenAI Realtime API (WebS
 - **Transcription:** streamed to OpenAI; server-side VAD segments utterances and
   returns committed transcripts. No local ASR model, no WebGPU requirement.
 - **Retrieval:** entirely local. Lexical **BM25** by default (zero download);
-  optional local **semantic** search (MiniLM, ~25 MB, opt-in).
+  optional local **semantic** search (MiniLM, ~25 MB, opt-in). Proper nouns from
+  document frontmatter (names, traits, categories) are weighted heavily, and
+  common words are discounted, so salient terms drive the match.
+- **Read the source:** click any result to open the **full document in a
+  sidebar**, scrolled to and highlighting the matched passage. The full text is
+  stored once in the index; chunks reference it by offset (no duplication).
 - **Correction:** mistranscribed domain terms are repaired against your corpus's
   known vocabulary before searching (edit-distance + phonetics).
 - **No backend:** a static SPA. You supply your own OpenAI API key; the browser
@@ -106,12 +111,16 @@ the app loads; it's git-ignored as a derived artifact. The app also runs with no
 index (transcript-only) and shows a "no corpus loaded" status.
 
 **Large corpora.** The index is a line-delimited (NDJSON) file: one JSON record
-per line. The CLI stream-writes it and the browser stream-parses it from the
-fetch body, so neither side ever builds a single giant string — tens of
-thousands of documents (hundreds of MB of index) ingest and load fine. (Note:
-the whole index is still held in browser memory, so extremely large corpora are
-bounded by RAM, and the optional local semantic embedder is impractical at that
-scale — keep semantic off for big corpora and rely on BM25.)
+per line — full documents first, then chunk records that reference a document by
+character offset rather than repeating its text. The CLI stream-writes it and the
+browser stream-parses it from the fetch body, so neither side ever builds a
+single giant string — tens of thousands of documents (hundreds of MB of index)
+ingest and load fine. On load, each chunk's text is `slice()`d from its parent
+document, which shares the backing string in V8, so retaining full documents for
+the sidebar costs offsets, not copies. (Note: the whole index is still held in
+browser memory, so extremely large corpora are bounded by RAM, and the optional
+local semantic embedder is impractical at that scale — keep semantic off for big
+corpora and rely on BM25.)
 
 ---
 
@@ -191,10 +200,12 @@ npm run test:e2e    # Playwright: full flow with a mocked OpenAI WebSocket
 
 Pure logic is unit-tested: PCM16/base64 conversion, the Realtime event codec
 (session config + event parsing + browser subprotocols), the transcription
-client (with an injected fake WebSocket), BM25 / vectors / RRF, chunking,
-snippets, the retrieval engine, edit-distance/phonetics, vocabulary correction,
-the rolling transcript, and DOM rendering. The e2e test drives a real browser
-with a mocked WebSocket: Start → transcript → local result.
+client (with an injected fake WebSocket), BM25 / vectors / RRF, chunking (incl.
+char offsets), the streamable NDJSON index round-trip (full docs + offset
+chunks), snippets, the retrieval engine, edit-distance/phonetics, vocabulary
+correction, the rolling transcript, DOM rendering, and the document sidebar
+viewer. The e2e test drives a real browser with a mocked WebSocket: Start →
+transcript → local result → open the full document in the sidebar.
 
 It needs a Chromium browser: set `PLAYWRIGHT_CHROMIUM_PATH` or run
 `npx playwright install chromium`.

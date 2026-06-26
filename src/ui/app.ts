@@ -11,11 +11,12 @@ import { DEFAULT_CONFIG, makeConfig } from '../config.ts';
 import type { AppConfig, DeepPartial } from '../config.ts';
 import { Orchestrator } from '../pipeline/orchestrator.ts';
 import type { PipelineStatus, ResultsInfo } from '../pipeline/orchestrator.ts';
-import type { CorpusIndex, SearchHit } from '../retrieval/types.ts';
+import type { CorpusIndex, DocEntry, SearchHit } from '../retrieval/types.ts';
 import type { NoiseReduction, TranscriptionModel } from '../asr/realtimeEvents.ts';
 import { el } from './dom.ts';
 import { renderResults } from './render.ts';
 import { AgentModal } from './agentModal.ts';
+import { DocSidebar } from './docSidebar.ts';
 
 const KEY_STORAGE = 'live-search.openai-api-key';
 
@@ -31,6 +32,8 @@ export class App {
   private listening = false;
   private interim = '';
   private agentModal: AgentModal | null = null;
+  private readonly docSidebar = new DocSidebar();
+  private readonly docsById = new Map<string, DocEntry>();
 
   private startBtn!: HTMLButtonElement;
   private statusBar!: HTMLElement;
@@ -52,10 +55,12 @@ export class App {
   constructor(opts: AppOptions) {
     this.index = opts.index;
     this.config = opts.config ?? DEFAULT_CONFIG;
+    for (const doc of this.index?.docs ?? []) this.docsById.set(doc.id, doc);
   }
 
   mount(container: HTMLElement): void {
     container.replaceChildren(this.build());
+    this.docSidebar.mount(container);
     this.renderStatus(this.blankStatus());
     this.resultsHost.replaceChildren(renderResults([]));
     this.apiKeyInput.value = localStorage.getItem(KEY_STORAGE) ?? '';
@@ -282,7 +287,7 @@ export class App {
   // --- rendering ---
 
   private renderResults(hits: SearchHit[], info: ResultsInfo): void {
-    this.resultsHost.replaceChildren(renderResults(hits));
+    this.resultsHost.replaceChildren(renderResults(hits, { onOpen: (hit) => this.openDoc(hit) }));
     const corrections = info.correctedTerms
       .map((t, i) => (t !== info.rawTerms[i] ? `${info.rawTerms[i]}→${t}` : null))
       .filter(Boolean);
@@ -291,6 +296,13 @@ export class App {
         el('p', { class: 'corrections', title: 'Vocabulary-constrained correction' }, `corrected: ${corrections.join(', ')}`),
       );
     }
+  }
+
+  /** Open the full source document for a result, scrolled to the matched chunk. */
+  private openDoc(hit: SearchHit): void {
+    const doc = this.docsById.get(hit.chunk.docId);
+    if (!doc) return;
+    this.docSidebar.open(doc, { start: hit.chunk.charStart, end: hit.chunk.charEnd });
   }
 
   private appendTranscript(entry: { text: string; isFinal: boolean }): void {

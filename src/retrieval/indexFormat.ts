@@ -9,14 +9,25 @@
  *
  * Layout (one JSON object per line, in this order):
  *   1. manifest  {f, v, chunkCount, bm25:{k1,b,docCount,avgDocLength}}
- *   2. chunks    {k:'c', id, d:docId, t:title, x:text, u?:url, p:position, l:tokenLen}
- *   3. terms     {k:'w', w:term, p:[[chunkIndex, tf], ...]}   (chunkIndex saves space)
- *   4. vocab     {k:'v', t:term, n:normalized, h:phonetic, f:frequency}
+ *   2. docs      {k:'d', id, t:title, x:text, u?:url, m?:meta}   (full document text)
+ *   3. chunks    {k:'c', id, d:docId, cs:charStart, ce:charEnd, p:position, l:tokenLen}
+ *   4. terms     {k:'w', w:term, p:[[chunkIndex, tf], ...]}   (chunkIndex saves space)
+ *   5. vocab     {k:'v', t:term, n:normalized, h:phonetic, f:frequency}
  *
- * Terms reference chunks by their 0-based emission index, so chunks MUST precede
- * terms (they do); the assembler relies on that ordering.
+ * A chunk's text/title/url are NOT stored per chunk; they are derived from the
+ * parent document by slicing [charStart, charEnd). So full text is stored ONCE
+ * (and `String.prototype.slice` shares the backing store, keeping chunk text
+ * cheap in memory). Docs MUST therefore precede chunks, and chunks MUST precede
+ * terms (terms reference chunks by 0-based emission index). The assembler relies
+ * on this ordering.
  */
-import type { Bm25IndexData, CorpusIndex, DocChunk, VocabularyEntry } from './types.ts';
+import type {
+  Bm25IndexData,
+  CorpusIndex,
+  DocChunk,
+  DocEntry,
+  VocabularyEntry,
+} from './types.ts';
 
 export const INDEX_FORMAT = 'live-search-index';
 export const INDEX_FORMAT_VERSION = 1;
@@ -30,6 +41,7 @@ export function* encodeIndexLines(index: CorpusIndex): Generator<string> {
     f: INDEX_FORMAT,
     v: INDEX_FORMAT_VERSION,
     chunkCount: index.chunks.length,
+    docCount: index.docs.length,
     bm25: {
       k1: index.bm25.k1,
       b: index.bm25.b,
@@ -38,18 +50,25 @@ export function* encodeIndexLines(index: CorpusIndex): Generator<string> {
     },
   });
 
+  // Full documents first: chunks slice their text out of these by offset.
+  for (const d of index.docs) {
+    const rec: Record<string, unknown> = { k: 'd', id: d.id, t: d.title, x: d.text };
+    if (d.url) rec.u = d.url;
+    if (d.meta && Object.keys(d.meta).length) rec.m = d.meta;
+    yield JSON.stringify(rec);
+  }
+
   for (const c of index.chunks) {
-    const rec: Record<string, unknown> = {
+    // title/url/text are derived from the parent doc on load, so omit them here.
+    yield JSON.stringify({
       k: 'c',
       id: c.id,
       d: c.docId,
-      t: c.title,
-      x: c.text,
+      cs: c.charStart,
+      ce: c.charEnd,
       p: c.position,
       l: index.bm25.docLengths[c.id] ?? 0,
-    };
-    if (c.url) rec.u = c.url;
-    yield JSON.stringify(rec);
+    });
   }
 
   for (const term of Object.keys(index.bm25.postings)) {
@@ -79,6 +98,8 @@ interface ManifestRecord {
  */
 export class IndexAssembler {
   private manifest: ManifestRecord | null = null;
+  private readonly docs: DocEntry[] = [];
+  private readonly docsById = new Map<string, DocEntry>();
   private readonly chunks: DocChunk[] = [];
   private readonly docLengths: Record<string, number> = Object.create(null);
   private readonly postings: Bm25IndexData['postings'] = Object.create(null);
@@ -95,15 +116,35 @@ export class IndexAssembler {
       return;
     }
     switch (rec.k) {
-      case 'c': {
-        const chunk: DocChunk = {
+      case 'd': {
+        const doc: DocEntry = {
           id: rec.id as string,
-          docId: rec.d as string,
           title: rec.t as string,
           text: rec.x as string,
-          position: rec.p as number,
         };
-        if (typeof rec.u === 'string') chunk.url = rec.u;
+        if (typeof rec.u === 'string') doc.url = rec.u;
+        if (rec.m && typeof rec.m === 'object') doc.meta = rec.m as Record<string, string>;
+        this.docs.push(doc);
+        this.docsById.set(doc.id, doc);
+        break;
+      }
+      case 'c': {
+        const docId = rec.d as string;
+        const parent = this.docsById.get(docId);
+        const charStart = rec.cs as number;
+        const charEnd = rec.ce as number;
+        // Slicing the parent's text shares its backing store (V8 SlicedString),
+        // so per-chunk text costs offsets, not a copy.
+        const chunk: DocChunk = {
+          id: rec.id as string,
+          docId,
+          title: parent ? parent.title : '',
+          text: parent ? parent.text.slice(charStart, charEnd) : '',
+          position: rec.p as number,
+          charStart,
+          charEnd,
+        };
+        if (parent?.url) chunk.url = parent.url;
         this.chunks.push(chunk);
         this.docLengths[chunk.id] = (rec.l as number) ?? 0;
         break;
@@ -146,6 +187,7 @@ export class IndexAssembler {
     return {
       version: this.manifest.v,
       chunks: this.chunks,
+      docs: this.docs,
       bm25,
       vocabulary: { entries: this.vocab },
     };

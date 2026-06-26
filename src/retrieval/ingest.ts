@@ -11,7 +11,7 @@ import type { AppConfig } from '../config.ts';
 import { Bm25Index } from './bm25.ts';
 import { chunkCorpus } from './chunk.ts';
 import { STOPWORDS, tokenize } from './tokenize.ts';
-import type { CorpusIndex, EmbeddingsData, RawDoc } from './types.ts';
+import type { CorpusIndex, DocEntry, EmbeddingsData, RawDoc } from './types.ts';
 import { buildVocabulary } from '../terms/vocabulary.ts';
 import { extractCandidateTerms } from '../terms/extract.ts';
 import { isCommonWord } from '../terms/commonWords.ts';
@@ -52,6 +52,18 @@ function collectVocabularyTerms(docs: RawDoc[], bm25: Bm25Index): string[] {
   return terms;
 }
 
+/**
+ * Reduce a {@link RawDoc} to the {@link DocEntry} the UI needs to render the
+ * full document. Drops index-only fields (boostTerms) and empty metadata so the
+ * serialized form is stable and round-trips exactly.
+ */
+function toDocEntry(doc: RawDoc): DocEntry {
+  const entry: DocEntry = { id: doc.id, title: doc.title, text: doc.text };
+  if (doc.url) entry.url = doc.url;
+  if (doc.meta && Object.keys(doc.meta).length) entry.meta = doc.meta;
+  return entry;
+}
+
 /** Build a {@link CorpusIndex} (without embeddings). */
 export function buildIndex(docs: RawDoc[], config: AppConfig): CorpusIndex {
   const chunks = chunkCorpus(docs, {
@@ -81,6 +93,7 @@ export function buildIndex(docs: RawDoc[], config: AppConfig): CorpusIndex {
   return {
     version: INDEX_VERSION,
     chunks,
+    docs: docs.map(toDocEntry),
     bm25: bm25.data,
     vocabulary,
   };

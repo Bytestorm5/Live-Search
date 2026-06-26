@@ -43,7 +43,9 @@ export function chunkDocument(doc: RawDoc, opts: ChunkOptions): DocChunk[] {
   let position = 0;
   for (let i = 0; i < spans.length; i += step) {
     const end = Math.min(i + size, spans.length);
-    const text = doc.text.slice(spans[i].start, spans[end - 1].end);
+    const charStart = spans[i].start;
+    const charEnd = spans[end - 1].end;
+    const text = doc.text.slice(charStart, charEnd);
     chunks.push({
       id: `${doc.id}#${position}`,
       docId: doc.id,
@@ -51,6 +53,8 @@ export function chunkDocument(doc: RawDoc, opts: ChunkOptions): DocChunk[] {
       text,
       ...(doc.url ? { url: doc.url } : {}),
       position,
+      charStart,
+      charEnd,
     });
     position++;
     if (end === spans.length) break;

@@ -19,12 +19,40 @@ function roundTrip(index: ReturnType<typeof buildIndex>) {
 }
 
 describe('NDJSON index round-trip', () => {
-  it('reconstructs chunks, urls, and the manifest version', () => {
+  it('reconstructs chunks, urls, offsets, and the manifest version', () => {
     const original = buildIndex(docs, config);
     const restored = roundTrip(original);
     expect(restored.version).toBe(original.version);
-    expect(restored.chunks).toEqual(original.chunks);
+    expect(restored.chunks).toEqual(original.chunks); // includes charStart/charEnd
     expect(restored.chunks.find((c) => c.docId === 'asr')?.url).toBe('https://x/asr');
+  });
+
+  it('reconstructs the full documents for the sidebar viewer', () => {
+    const original = buildIndex(docs, config);
+    const restored = roundTrip(original);
+    expect(restored.docs).toEqual(original.docs);
+    const asr = restored.docs.find((d) => d.id === 'asr');
+    expect(asr?.text).toContain('Moonshine is a fast ASR model');
+    expect(asr?.url).toBe('https://x/asr');
+  });
+
+  it('stores chunk text once: offset records, not duplicated text', () => {
+    const index = buildIndex(docs, config);
+    const recs = [...encodeIndexLines(index)].map((l) => JSON.parse(l));
+    const chunkRecs = recs.filter((r) => r.k === 'c');
+    const docRecs = recs.filter((r) => r.k === 'd');
+    expect(chunkRecs.length).toBe(index.chunks.length);
+    expect(docRecs.length).toBe(index.docs.length);
+    for (const c of chunkRecs) {
+      expect(c.x).toBeUndefined(); // no per-chunk text
+      expect(typeof c.cs).toBe('number');
+      expect(typeof c.ce).toBe('number');
+    }
+    // A chunk's text is recovered by slicing its parent document.
+    const restored = roundTrip(index);
+    const c0 = restored.chunks[0];
+    const parent = restored.docs.find((d) => d.id === c0.docId)!;
+    expect(parent.text.slice(c0.charStart, c0.charEnd)).toBe(c0.text);
   });
 
   it('preserves BM25 search results exactly', () => {

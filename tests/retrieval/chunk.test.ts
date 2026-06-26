@@ -40,6 +40,16 @@ describe('chunkDocument', () => {
     expect(chunks[0].text).toBe('Hello,   world!');
   });
 
+  it('records char offsets that slice the parent text back to the chunk', () => {
+    const doc: RawDoc = { id: 'd', title: 'T', text: 'Hello,   world!  How are you?' };
+    const chunks = chunkDocument(doc, { chunkSizeTokens: 2, chunkOverlapTokens: 0 });
+    expect(chunks[0].charStart).toBe(0);
+    expect(chunks[0].charEnd).toBe('Hello,   world!'.length);
+    for (const c of chunks) {
+      expect(doc.text.slice(c.charStart, c.charEnd)).toBe(c.text);
+    }
+  });
+
   it('carries url metadata onto chunks', () => {
     const doc: RawDoc = { id: 'd', title: 'T', text: words(3), url: 'https://x/y' };
     const chunks = chunkDocument(doc, { chunkSizeTokens: 5, chunkOverlapTokens: 0 });

@@ -92,6 +92,18 @@ test('transcript from OpenAI drives a local documentation result', async ({ page
   const banner = (await page.locator('.error-banner').textContent())?.trim() ?? '';
   expect(banner, banner).not.toMatch(/no microphone audio/i);
 
+  // Clicking a result opens the full source document in a sidebar, scrolled to
+  // and highlighting the matched chunk (Phase B).
+  await card.click();
+  const sidebar = page.locator('.doc-sidebar');
+  await expect(sidebar).toBeVisible({ timeout: 10_000 });
+  await expect(sidebar.locator('.doc-title')).toContainText(/Speech Recognition/i);
+  await expect(sidebar.locator('.doc-highlight')).toBeVisible();
+  await expect(sidebar.locator('.doc-body')).toContainText(/Moonshine/i);
+  // It can be dismissed (close button), restoring the page.
+  await sidebar.locator('.doc-close').click();
+  await expect(sidebar).toBeHidden();
+
   // No hard errors, and no model-file SPA-fallback JSON.parse regressions.
   const joined = errors.join('\n');
   expect(joined, joined).not.toMatch(/unexpected character|JSON\.parse/i);

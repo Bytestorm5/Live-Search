@@ -37,6 +37,20 @@ export interface DocChunk {
   url?: string;
   /** 0-based index of this chunk within its parent document. */
   position: number;
+  /** Character offset of this chunk's text within the parent document. */
+  charStart: number;
+  /** Character offset one past the end of this chunk's text in the document. */
+  charEnd: number;
+}
+
+/** A full document, retained so the UI can open it in a sidebar (spec §5.6). */
+export interface DocEntry {
+  id: string;
+  title: string;
+  url?: string;
+  /** Full document text (stored once; chunks reference it by offset). */
+  text: string;
+  meta?: Record<string, string>;
 }
 
 /** Serialized BM25 inverted index (spec §5.5 "Lexical"). */
@@ -91,6 +105,12 @@ export interface CorpusIndex {
   /** ISO timestamp; informational only. */
   builtAt?: string;
   chunks: DocChunk[];
+  /**
+   * Full source documents, retained so a result can be opened in a sidebar and
+   * scrolled to the matched chunk (spec §5.6). Chunk text is sliced from these
+   * by offset, so the full text is stored once, not duplicated per chunk.
+   */
+  docs: DocEntry[];
   bm25: Bm25IndexData;
   vocabulary: VocabularyData;
   /** Present when embeddings were precomputed at build time. */
