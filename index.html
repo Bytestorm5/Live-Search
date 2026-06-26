@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Privacy egress lock (architecture spec §7.1).
+
+      `connect-src 'self'` makes it structurally impossible for the page to POST
+      audio or transcript text to any third party — the browser refuses the
+      request before it leaves the tab, and any skeptical user can verify this
+      in DevTools. `'wasm-unsafe-eval'` is required to compile the ONNX Runtime
+      WebAssembly; `worker-src blob:` is required because ORT spawns its wasm
+      threads from blob workers.
+
+      NOTE: A CSP delivered as an HTTP *header* is stronger than this meta tag
+      (a header cannot be stripped by an injected <meta>). Production hosts
+      should send the equivalent header — see public/_headers.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self' 'wasm-unsafe-eval';
+        worker-src 'self' blob:;
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data:;
+        font-src 'self';
+        connect-src 'self';
+        object-src 'none';
+        base-uri 'self';
+        form-action 'none';
+        frame-ancestors 'none';
+      "
+    />
+
+    <title>Live Search — Private Live Transcription &amp; Docs Lookup</title>
+    <link rel="stylesheet" href="/src/ui/styles.css" />
+  </head>
+  <body>
+    <div id="app" aria-live="polite"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
