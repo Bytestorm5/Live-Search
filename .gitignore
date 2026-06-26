@@ -50,3 +50,4 @@ public/corpus.index.ndjson
 .models/
 # Self-hosted model assets fetched by `npm run setup:assets` (derived artifacts)
 public/models/
+/docs-corpus
