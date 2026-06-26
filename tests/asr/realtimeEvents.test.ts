@@ -16,9 +16,9 @@ const SETTINGS: TranscriptionSettings = {
 };
 
 describe('buildSessionUpdate', () => {
-  it('produces the flat transcription_session schema (intent=transcription endpoint)', () => {
+  it('produces a session.update with flat transcription fields (intent=transcription endpoint)', () => {
     const u = buildSessionUpdate(SETTINGS) as any;
-    expect(u.type).toBe('transcription_session.update');
+    expect(u.type).toBe('session.update');
     expect(u.session.input_audio_format).toBe('pcm16');
     expect(u.session.input_audio_transcription).toEqual({ model: 'gpt-4o-mini-transcribe', language: 'en' });
     expect(u.session.turn_detection).toEqual({ type: 'server_vad' });

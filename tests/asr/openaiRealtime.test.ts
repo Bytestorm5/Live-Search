@@ -64,7 +64,7 @@ describe('OpenAIRealtimeTranscriber', () => {
     ws.open();
     expect(onOpen).toHaveBeenCalled();
     const sent = JSON.parse(ws.sent[0]);
-    expect(sent.type).toBe('transcription_session.update');
+    expect(sent.type).toBe('session.update');
     expect(sent.session.input_audio_transcription.model).toBe('gpt-4o-mini-transcribe');
   });
 

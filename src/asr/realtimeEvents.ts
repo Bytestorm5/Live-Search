@@ -21,13 +21,15 @@ export interface TranscriptionSettings {
 }
 
 /**
- * Build the `transcription_session.update` payload that configures the session.
+ * Build the session-configuration payload for the `?intent=transcription`
+ * endpoint.
  *
- * This targets the `?intent=transcription` endpoint, which uses the FLAT schema:
- * `input_audio_format` (a string; "pcm16" implies 24 kHz mono LE),
- * `input_audio_transcription`, `turn_detection`, and `input_audio_noise_reduction`
- * — NOT the GA `session.type: "transcription"` shape nested under `audio.input`,
- * which this endpoint silently ignores (resulting in no transcripts).
+ * The server accepts the `session.update` event type (it rejects
+ * `transcription_session.update`) but with the FLAT transcription fields —
+ * `input_audio_format` (a string; "pcm16" = 24 kHz mono LE),
+ * `input_audio_transcription`, `turn_detection`, `input_audio_noise_reduction` —
+ * NOT the nested `session.type: "transcription"` / `audio.input` shape (which
+ * this endpoint ignores, yielding no transcripts).
  */
 export function buildSessionUpdate(s: TranscriptionSettings): object {
   const session: Record<string, unknown> = {
@@ -41,7 +43,7 @@ export function buildSessionUpdate(s: TranscriptionSettings): object {
   if (s.noiseReduction !== 'none') {
     session.input_audio_noise_reduction = { type: s.noiseReduction };
   }
-  return { type: 'transcription_session.update', session };
+  return { type: 'session.update', session };
 }
 
 /** Build an audio append event from base64-encoded PCM16. */

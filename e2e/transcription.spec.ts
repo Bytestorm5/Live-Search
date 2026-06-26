@@ -20,8 +20,8 @@ class FakeWebSocket {
   }
   send(data) {
     let msg; try { msg = JSON.parse(data); } catch { return; }
-    if (msg.type === 'transcription_session.update') {
-      setTimeout(() => this._emit({ type: 'transcription_session.updated' }), 5);
+    if (msg.type === 'session.update') {
+      setTimeout(() => this._emit({ type: 'session.updated' }), 5);
       setTimeout(() => this._emit({
         type: 'conversation.item.input_audio_transcription.completed',
         item_id: 'i1',
