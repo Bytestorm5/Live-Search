@@ -16,20 +16,21 @@ const SETTINGS: TranscriptionSettings = {
 };
 
 describe('buildSessionUpdate', () => {
-  it('produces a session.update with flat transcription fields (intent=transcription endpoint)', () => {
+  it('produces a session.update with the GA nested transcription schema', () => {
     const u = buildSessionUpdate(SETTINGS) as any;
     expect(u.type).toBe('session.update');
-    expect(u.session.input_audio_format).toBe('pcm16');
-    expect(u.session.input_audio_transcription).toEqual({ model: 'gpt-4o-mini-transcribe', language: 'en' });
-    expect(u.session.turn_detection).toEqual({ type: 'server_vad' });
-    expect(u.session.input_audio_noise_reduction).toEqual({ type: 'near_field' });
+    expect(u.session.type).toBe('transcription');
+    expect(u.session.audio.input.format).toEqual({ type: 'audio/pcm', rate: 24000 });
+    expect(u.session.audio.input.transcription).toEqual({ model: 'gpt-4o-mini-transcribe', language: 'en' });
+    expect(u.session.audio.input.turn_detection).toEqual({ type: 'server_vad' });
+    expect(u.session.audio.input.noise_reduction).toEqual({ type: 'near_field' });
   });
 
   it('omits language when blank, nulls turn_detection when serverVad off, drops noise reduction when none', () => {
     const u = buildSessionUpdate({ ...SETTINGS, language: '', serverVad: false, noiseReduction: 'none' }) as any;
-    expect(u.session.input_audio_transcription.language).toBeUndefined();
-    expect(u.session.turn_detection).toBeNull();
-    expect(u.session.input_audio_noise_reduction).toBeUndefined();
+    expect(u.session.audio.input.transcription.language).toBeUndefined();
+    expect(u.session.audio.input.turn_detection).toBeNull();
+    expect(u.session.audio.input.noise_reduction).toBeUndefined();
   });
 });
 

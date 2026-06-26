@@ -22,28 +22,27 @@ export interface TranscriptionSettings {
 
 /**
  * Build the session-configuration payload for the `?intent=transcription`
- * endpoint.
+ * endpoint (GA schema).
  *
- * The server accepts the `session.update` event type (it rejects
- * `transcription_session.update`) but with the FLAT transcription fields —
- * `input_audio_format` (a string; "pcm16" = 24 kHz mono LE),
- * `input_audio_transcription`, `turn_detection`, `input_audio_noise_reduction` —
- * NOT the nested `session.type: "transcription"` / `audio.input` shape (which
- * this endpoint ignores, yielding no transcripts).
+ * Determined empirically from the server's own validation errors: the event type
+ * must be `session.update` (it rejects `transcription_session.update`), and the
+ * session body requires `session.type: "transcription"` with the audio config
+ * nested under `session.audio.input` (`format`, `transcription`, `turn_detection`,
+ * `noise_reduction`). "audio/pcm" at 24 kHz mono LE matches the PCM16 we stream.
  */
 export function buildSessionUpdate(s: TranscriptionSettings): object {
-  const session: Record<string, unknown> = {
-    input_audio_format: 'pcm16',
-    input_audio_transcription: {
+  const input: Record<string, unknown> = {
+    format: { type: 'audio/pcm', rate: s.sampleRate },
+    transcription: {
       model: s.model,
       ...(s.language ? { language: s.language } : {}),
     },
     turn_detection: s.serverVad ? { type: 'server_vad' } : null,
   };
   if (s.noiseReduction !== 'none') {
-    session.input_audio_noise_reduction = { type: s.noiseReduction };
+    input.noise_reduction = { type: s.noiseReduction };
   }
-  return { type: 'session.update', session };
+  return { type: 'session.update', session: { type: 'transcription', audio: { input } } };
 }
 
 /** Build an audio append event from base64-encoded PCM16. */

@@ -52,6 +52,13 @@ export async function startCapture(
   source.connect(node);
   node.connect(context.destination); // keep the graph pulled; node emits silence
 
+  // The AudioContext can start suspended under the autoplay policy; if it is,
+  // the worklet's process() never runs and no audio is ever captured/sent.
+  // Resume it (we're still inside the Start-button user gesture chain).
+  if (context.state === 'suspended') {
+    await context.resume();
+  }
+
   return {
     sampleRate: context.sampleRate,
     async stop() {

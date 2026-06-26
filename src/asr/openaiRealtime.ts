@@ -114,10 +114,14 @@ export class OpenAIRealtimeTranscriber {
     return this.opened && this.ws?.readyState === OPEN;
   }
 
-  /** Send one Float32 frame (already at the configured sample rate). */
-  sendFrame(frame: Float32Array): void {
-    if (!this.isOpen || frame.length === 0) return;
+  /**
+   * Send one Float32 frame (already at the configured sample rate). Returns true
+   * if it was actually sent (socket open and frame non-empty).
+   */
+  sendFrame(frame: Float32Array): boolean {
+    if (!this.isOpen || frame.length === 0) return false;
     this.ws!.send(JSON.stringify(buildAudioAppend(floatFrameToBase64(frame))));
+    return true;
   }
 
   close(): void {

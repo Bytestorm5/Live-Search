@@ -70,6 +70,8 @@ export class Orchestrator {
   private displayed: SearchHit[] = [];
   private shownIds = new Set<string>();
   private started = false;
+  private audioSent = false;
+  private audioWatchdog: ReturnType<typeof setTimeout> | null = null;
 
   private status: PipelineStatus = {
     micActive: false,
@@ -102,6 +104,7 @@ export class Orchestrator {
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
+    this.audioSent = false;
     this.emitStatus({ connection: 'connecting' });
 
     // Build the retrieval index in the background (lexical is instant; semantic
@@ -129,7 +132,10 @@ export class Orchestrator {
           ...(this.project ? { project: this.project } : {}),
         },
         {
-          onSessionReady: () => this.emitStatus({ connection: 'live' }),
+          onSessionReady: () => {
+            this.emitStatus({ connection: 'live' });
+            this.armAudioWatchdog();
+          },
           onDelta: (text) => this.cb.onTranscript({ text, isFinal: false }),
           onFinal: (text) => void this.handleFinal(text),
           onSpeech: (active) => this.emitStatus({ speaking: active }),
@@ -151,6 +157,10 @@ export class Orchestrator {
 
   async stop(): Promise<void> {
     this.started = false;
+    if (this.audioWatchdog) {
+      clearTimeout(this.audioWatchdog);
+      this.audioWatchdog = null;
+    }
     this.transcriber?.close();
     this.transcriber = null;
     await this.capture?.stop();
@@ -191,7 +201,26 @@ export class Orchestrator {
   private onFrame(frame: Float32Array): void {
     if (!this.resampler || !this.transcriber) return;
     const resampled = this.resampler.process(frame);
-    if (resampled.length) this.transcriber.sendFrame(resampled);
+    if (!resampled.length) return;
+    if (this.transcriber.sendFrame(resampled) && !this.audioSent) {
+      this.audioSent = true;
+      if (this.audioWatchdog) {
+        clearTimeout(this.audioWatchdog);
+        this.audioWatchdog = null;
+      }
+    }
+  }
+
+  /** Warn if we go live but no microphone audio actually reaches the socket. */
+  private armAudioWatchdog(): void {
+    if (this.audioWatchdog) clearTimeout(this.audioWatchdog);
+    this.audioWatchdog = setTimeout(() => {
+      if (this.started && !this.audioSent) {
+        this.cb.onError(
+          'Connected to OpenAI, but no microphone audio is being sent. Check that the right mic is selected and not muted.',
+        );
+      }
+    }, 5000);
   }
 
   private async handleFinal(text: string): Promise<void> {
